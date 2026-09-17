@@ -25,6 +25,7 @@ export function LogClimbSheet({
   submitLabel = 'Save attempt',
   onSubmit,
   onClose,
+  sharing,
 }: {
   /** Rest measured since the previous attempt; shown so it can be sanity-checked. */
   restSec?: number
@@ -36,6 +37,13 @@ export function LogClimbSheet({
   submitLabel?: string
   onSubmit: (draft: ClimbDraft) => void
   onClose: () => void
+  /** Present only when this attempt already exists and a crew is set up. */
+  sharing?: {
+    shared: boolean
+    busy: boolean
+    error: string | null
+    onToggle: () => void
+  }
 }) {
   const [grade, setGrade] = useState<Grade | null>(initial?.grade ?? null)
   const [problemName, setProblemName] = useState(initial?.problemName ?? '')
@@ -202,6 +210,26 @@ export function LogClimbSheet({
             </span>
           )}
         </div>
+
+        {sharing && (
+          <div className="field">
+            <label>Crew</label>
+            <button
+              className={`btn btn-block${sharing.shared ? '' : ' btn-primary'}`}
+              disabled={sharing.busy}
+              onClick={sharing.onToggle}
+            >
+              <span className="share-state">
+                {sharing.busy
+                  ? 'Working…'
+                  : sharing.shared
+                    ? '✓ On the crew board — tap to remove'
+                    : 'Share this go with the crew'}
+              </span>
+            </button>
+            {sharing.error && <div className="error-note">{sharing.error}</div>}
+          </div>
+        )}
 
         <button className="btn btn-primary btn-lg btn-block" disabled={!grade} onClick={submit}>
           {grade ? submitLabel : 'Pick a grade first'}

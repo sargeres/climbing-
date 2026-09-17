@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../lib/store'
 import { ClimbRow, EmptyState, GradeHistogram, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet } from '../components/LogClimbSheet'
 import { formatDateLong, formatDuration, formatDurationShort, formatTime } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
+import { buildSnapshot } from '../lib/snapshot'
+import { SessionSnapshot } from '../components/SessionSnapshot'
+import { fetchMySharedIds, readIdentity, shareClimb, unshareClimb } from '../lib/crew'
 import type { Climb } from '../lib/types'
 
 export function SessionDetailScreen({
@@ -39,6 +42,51 @@ export function SessionDetailScreen({
   const summary = summarise(climbs)
   const ratio = workRestRatio(summary)
   const duration = ((session.endedAt ?? Date.now()) - session.startedAt) / 1000
+  const priorClimbs = store
+    .climbsForClient(session.clientId)
+    .filter((c) => c.sessionId !== sessionId)
+  const snapshot = buildSnapshot(climbs, priorClimbs, duration, client?.name)
+
+  // Crew sharing is optional and entirely separate from the local log: if the
+  // network or the service is down, logging carries on untouched.
+  const crewIdentity = readIdentity()
+  const [sharedIds, setSharedIds] = useState<Set<string>>(new Set())
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+
+  const crewId = crewIdentity?.crewId ?? null
+  useEffect(() => {
+    if (!crewId) return
+    let cancelled = false
+    void fetchMySharedIds(crewId).then((r) => {
+      if (!cancelled && r.ok) setSharedIds(r.value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [crewId])
+
+  const toggleShare = async (climb: Climb) => {
+    if (!crewIdentity || !session) return
+    setShareBusy(true)
+    setShareError(null)
+    const already = sharedIds.has(climb.id)
+    const result = already
+      ? await unshareClimb(climb.id)
+      : await shareClimb(crewIdentity, climb, session, client?.name ?? null)
+    setShareBusy(false)
+    if (!result.ok) {
+      setShareError(result.error)
+      return
+    }
+    setSharedIds((ids) => {
+      const next = new Set(ids)
+      if (already) next.delete(climb.id)
+      else next.add(climb.id)
+      return next
+    })
+  }
+
   const canReopen = session.endedAt !== null && store.activeSession === null
 
   return (
@@ -50,6 +98,8 @@ export function SessionDetailScreen({
       />
 
       <main className="content">
+        <SessionSnapshot snapshot={snapshot} title="How it went" />
+
         <div className="card">
           <div className="spread" style={{ marginBottom: 14 }}>
             <div>
@@ -143,6 +193,16 @@ export function SessionDetailScreen({
           title="Edit attempt"
           submitLabel="Save changes"
           initial={editing}
+          sharing={
+            crewIdentity
+              ? {
+                  shared: sharedIds.has(editing.id),
+                  busy: shareBusy,
+                  error: shareError,
+                  onToggle: () => void toggleShare(editing),
+                }
+              : undefined
+          }
           problemSuggestions={store.problemNamesAtVenue(session.venue)}
           onSubmit={(draft) => {
             store.updateClimb(editing.id, draft)
