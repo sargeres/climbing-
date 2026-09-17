@@ -23,6 +23,7 @@ used before come back as one-tap chips.
 | Problem name | Optional; previously logged names at this venue are offered as chips |
 | Time on the wall | Captured automatically from the stopwatch |
 | Rest | Captured automatically from the stopwatch |
+| Video link | Optional; paste a YouTube, Instagram or TikTok URL |
 
 **The stopwatch runs itself and tracks two clocks.** It starts resting when the
 session does. Tap **Start climbing** when the climber pulls on and the clock
@@ -42,6 +43,23 @@ Elapsed time is always derived from wall-clock timestamps, so locking the phone,
 switching apps or reloading mid-go all keep the true durations, and the phase
 you were in survives a reload. The screen is held awake while a session is
 running.
+
+**Beta stays where you already posted it.** Paste a link to a clip and it plays
+inline in the log — YouTube (including Shorts, with timestamps preserved),
+Instagram posts and reels, and TikTok. Nothing is uploaded and nothing is
+hosted here, so there is no storage cost and no second copy of anyone's footage
+to look after.
+
+Instagram only renders public posts through its embed, and TikTok short links
+(`vm.tiktok.com`) hide the id behind a redirect, so both fall back to a tidy
+"open in the app" card. That card sits under every embed anyway, because a
+frame that silently fails to load can't be detected from outside it.
+
+A pasted link is untrusted input on its way to an `iframe src`, so none is ever
+used verbatim: the URL is parsed, the video id extracted, and the embed address
+rebuilt from a fixed per-platform template. Anything unrecognised is never
+embedded — it degrades to a plain link, and only when the scheme is http(s) and
+the host looks like a real domain.
 
 **Venues recognise themselves.** The first time you climb somewhere you type the
 name as normal and the app quietly records the coordinates alongside the
@@ -71,8 +89,8 @@ third party ever sees your clients' names.
 That also means a lost or wiped phone takes the log with it, so **Settings →
 Export backup (JSON)** is the safety net — it restores through *Restore from
 backup* on any device. There's also a CSV export (one row per attempt, joined to
-its client, venue, both durations and the session's coordinates) for
-spreadsheets.
+its client, venue, both durations, the session's coordinates and any video
+link) for spreadsheets.
 
 ## Running it
 
@@ -108,6 +126,7 @@ src/
     useSessionTimer.ts  Two-phase stopwatch (rest / climb), survives reloads
     useGeolocation.ts Single position fix for tagging a session
     venues.ts         Matches a fix against venues you have already named
+    video.ts          Parses pasted links into safe, embeddable references
     useWakeLock.ts    Keeps the screen on during a session
     useNav.ts         Screen stack wired to the History API
     stats.ts          Session and client summaries, work:rest ratio

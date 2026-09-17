@@ -3,12 +3,15 @@ import { GradePicker, Sheet } from './ui'
 import { completionColor, effortColor, EFFORT_LABELS } from '../lib/colors'
 import { EFFORT_MAX, EFFORT_MIN, type Grade } from '../lib/types'
 import { formatDurationShort } from '../lib/format'
+import { parseVideoUrl } from '../lib/video'
+import { VideoEmbed } from './VideoEmbed'
 
 export interface ClimbDraft {
   grade: Grade
   problemName: string
   completion: number
   effort: number
+  videoUrl: string
 }
 
 const QUICK_PERCENTS = [25, 50, 75, 100]
@@ -38,10 +41,22 @@ export function LogClimbSheet({
   const [problemName, setProblemName] = useState(initial?.problemName ?? '')
   const [completion, setCompletion] = useState(initial?.completion ?? 100)
   const [effort, setEffort] = useState(initial?.effort ?? 7)
+  const [videoUrl, setVideoUrl] = useState(initial?.videoUrl ?? '')
+
+  const trimmedUrl = videoUrl.trim()
+  const video = trimmedUrl ? parseVideoUrl(trimmedUrl) : null
+  const badUrl = trimmedUrl !== '' && video === null
 
   const submit = () => {
     if (!grade) return
-    onSubmit({ grade, problemName: problemName.trim(), completion, effort })
+    onSubmit({
+      grade,
+      problemName: problemName.trim(),
+      completion,
+      effort,
+      // Store the parsed form so a stray space or missing scheme is fixed once.
+      videoUrl: video ? video.url : '',
+    })
   }
 
   const pctColor = completionColor(completion)
@@ -159,6 +174,33 @@ export function LogClimbSheet({
               )
             })}
           </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="video">Video link (optional)</label>
+          <input
+            id="video"
+            className="input"
+            value={videoUrl}
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Paste a YouTube, Instagram or TikTok link"
+            onChange={(e) => setVideoUrl(e.target.value)}
+            style={badUrl ? { borderColor: 'var(--danger)' } : undefined}
+          />
+          {badUrl ? (
+            <span className="tiny" style={{ color: 'var(--danger)' }}>
+              That doesn't look like a web link.
+            </span>
+          ) : video ? (
+            <VideoEmbed url={video.url} />
+          ) : (
+            <span className="tiny faint">
+              Host it wherever you already post — nothing is uploaded here.
+            </span>
+          )}
         </div>
 
         <button className="btn btn-primary btn-lg btn-block" disabled={!grade} onClick={submit}>

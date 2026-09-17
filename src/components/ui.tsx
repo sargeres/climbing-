@@ -162,6 +162,12 @@ export function ClimbRow({ climb, onClick }: { climb: Climb; onClick?: () => voi
           </span>
         </div>
         <div className="tiny faint" style={{ marginTop: 5 }}>
+          {climb.videoUrl && (
+            <>
+              <span style={{ color: 'var(--brand)', fontWeight: 650 }}>▶ Video</span>
+              {' · '}
+            </>
+          )}
           Effort {climb.effort}/10
           {climb.climbSec > 0 && (
             <>

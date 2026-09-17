@@ -50,14 +50,17 @@ export interface Climb {
   restSec: number
   /** Seconds spent on the wall for this attempt. 0 when it wasn't timed. */
   climbSec: number
+  /** Link to footage of this go, hosted wherever the climber already posts. */
+  videoUrl: string
   loggedAt: number
 }
 
 /**
- * 1 → 2 added per-attempt climb time and session coordinates. Both are
- * backfilled by `migrate`, so a v1 export restores without losing anything.
+ * 1 → 2 added per-attempt climb time and session coordinates.
+ * 2 → 3 added a per-attempt video link.
+ * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 2
+export const DATA_VERSION = 3
 
 export interface AppData {
   version: number
