@@ -60,6 +60,19 @@ export function HomeScreen({ navigate }: { navigate: (screen: Screen) => void })
           </button>
         )}
 
+        <button className="list-item" onClick={() => navigate({ name: 'crew' })}>
+          <span className="avatar" style={{ background: 'var(--surface-3)' }} aria-hidden="true">
+            ◎
+          </span>
+          <div className="list-main">
+            <div className="list-title">Crew</div>
+            <div className="tiny muted">Shared beta and comments with your friends</div>
+          </div>
+          <span className="faint" aria-hidden="true">
+            ›
+          </span>
+        </button>
+
         <div className="spread">
           <span className="section-label">Clients</span>
           <button className="btn-ghost btn" onClick={() => setAdding(true)}>

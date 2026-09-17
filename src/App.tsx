@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { StoreProvider, useStore } from './lib/store'
 import { useNav } from './lib/useNav'
 import { HomeScreen } from './screens/HomeScreen'
@@ -6,10 +7,17 @@ import { ActiveSessionScreen } from './screens/ActiveSessionScreen'
 import { SessionDetailScreen } from './screens/SessionDetailScreen'
 import { ClientScreen } from './screens/ClientScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { CrewScreen } from './screens/CrewScreen'
+import { joinCodeFromUrl } from './lib/crew'
 
 function Router() {
   const { ready } = useStore()
-  const { screen, push, replace, back } = useNav()
+  // An invite link lands on the normal app URL with the code in the hash, so
+  // the crew screen opens straight onto the join form.
+  const inviteCode = useMemo(() => joinCodeFromUrl(), [])
+  const { screen, push, replace, back } = useNav(
+    inviteCode ? { name: 'crew' } : { name: 'home' },
+  )
 
   if (!ready) {
     return (
@@ -62,6 +70,9 @@ function Router() {
 
     case 'settings':
       return <SettingsScreen onBack={back} />
+
+    case 'crew':
+      return <CrewScreen onBack={back} presetCode={inviteCode} />
   }
 }
 

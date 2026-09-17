@@ -767,6 +767,16 @@ input[type='range']::-moz-range-thumb {
   transform: scale(0.99);
 }
 
+/* The card's inner wrapper is a span, so being a flex item blockifies it but
+   leaves its own children inline — without this the title and the hint run
+   together on one line. */
+.video-card .list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .video-play {
   display: grid;
   place-items: center;
@@ -970,4 +980,28 @@ input[type='range']::-moz-range-thumb {
   border-color: var(--brand);
   color: var(--brand);
   background: #241610;
+}
+
+/* ---------------------------------------------------------------- crew -- */
+.error-note {
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  border: 1px solid #40232a;
+  background: #1d1418;
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.comment {
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.share-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

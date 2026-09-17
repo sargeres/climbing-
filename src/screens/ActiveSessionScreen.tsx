@@ -11,6 +11,7 @@ import { useWakeLock } from '../lib/useWakeLock'
 import { formatDuration, formatDurationShort } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
 import type { Climb } from '../lib/types'
+import { fetchMySharedIds, readIdentity, shareClimb, unshareClimb } from '../lib/crew'
 import type { Screen } from '../lib/useNav'
 
 export function ActiveSessionScreen({
@@ -99,6 +100,47 @@ export function ActiveSessionScreen({
     .climbsForClient(session.clientId)
     .filter((c) => c.sessionId !== sessionId)
   const snapshot = buildSnapshot(climbs, priorClimbs, elapsed, client?.name)
+
+  // Crew sharing is optional and entirely separate from the local log: if the
+  // network or the service is down, logging carries on untouched.
+  const crewIdentity = readIdentity()
+  const [sharedIds, setSharedIds] = useState<Set<string>>(new Set())
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+
+  const crewId = crewIdentity?.crewId ?? null
+  useEffect(() => {
+    if (!crewId) return
+    let cancelled = false
+    void fetchMySharedIds(crewId).then((r) => {
+      if (!cancelled && r.ok) setSharedIds(r.value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [crewId])
+
+  const toggleShare = async (climb: Climb) => {
+    if (!crewIdentity || !session) return
+    setShareBusy(true)
+    setShareError(null)
+    const already = sharedIds.has(climb.id)
+    const result = already
+      ? await unshareClimb(climb.id)
+      : await shareClimb(crewIdentity, climb, session, client?.name ?? null)
+    setShareBusy(false)
+    if (!result.ok) {
+      setShareError(result.error)
+      return
+    }
+    setSharedIds((ids) => {
+      const next = new Set(ids)
+      if (already) next.delete(climb.id)
+      else next.add(climb.id)
+      return next
+    })
+  }
+
 
   const saveClimb = (draft: ClimbDraft) => {
     store.addClimb({
@@ -259,6 +301,16 @@ export function ActiveSessionScreen({
           title="Edit attempt"
           submitLabel="Save changes"
           initial={editing}
+          sharing={
+            crewIdentity
+              ? {
+                  shared: sharedIds.has(editing.id),
+                  busy: shareBusy,
+                  error: shareError,
+                  onToggle: () => void toggleShare(editing),
+                }
+              : undefined
+          }
           restSec={editing.restSec}
           climbSec={editing.climbSec}
           problemSuggestions={store.problemNamesAtVenue(session.venue)}

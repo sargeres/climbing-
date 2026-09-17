@@ -7,6 +7,7 @@ export type Screen =
   | { name: 'session'; sessionId: string }
   | { name: 'sessionDetail'; sessionId: string }
   | { name: 'settings' }
+  | { name: 'crew' }
 
 interface HistoryState {
   depth: number

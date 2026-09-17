@@ -102,6 +102,46 @@ of each bar.
 **Per client**, the same stats across every session, plus a best-send-per-session
 strip to see whether the coaching is moving the needle.
 
+## Crew — shared beta
+
+A crew is a handful of friends who can see each other's shared attempts and
+comment on them. It is the only part of Sendlog that touches a network.
+
+You create a crew, get a secret link, and send it to your friends. They open it,
+pick a display name, and they are in — no email, no password, nothing to reset
+at the gym. Each device signs in anonymously behind the scenes, so posts and
+comments have a stable author without anyone holding a credential.
+
+Sharing is per attempt and off by default: open an attempt and tap *Share this
+go with the crew*. The video link comes with it, so beta is watchable straight
+from the board.
+
+**The crew never gets in the way of the log.** Every call returns a result
+rather than throwing, and a failure is shown on the crew screen alone. With the
+server unreachable you can still start sessions, log attempts, run both clocks
+and read every stat — that path never touches the network.
+
+### Setting it up
+
+The app ships a Supabase publishable key, which is public by design: it
+identifies the project and grants exactly what Row Level Security allows. The
+rules in `supabase/schema.sql` are the real security boundary.
+
+To point the app at your own project:
+
+1. Create a project at supabase.com
+2. Run `supabase/schema.sql` once in the SQL Editor
+3. Enable **Authentication → Providers → Anonymous sign-ins**
+4. Build with `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` set, or edit the
+   defaults in `src/lib/supabase.ts`
+
+The schema's shape: a crew is joined with a secret code through a
+`SECURITY DEFINER` function, never by knowing its id, so the `crews` table is
+unreadable to non-members and a crew cannot be discovered without an invite.
+Everything else is gated on membership. The membership check is itself
+`SECURITY DEFINER` because a policy on `crew_members` that queried
+`crew_members` would recurse.
+
 ## Your data
 
 Everything is stored on the device, in IndexedDB. No accounts, no server, no
@@ -148,6 +188,8 @@ src/
     useGeolocation.ts Single position fix for tagging a session
     venues.ts         Matches a fix against venues you have already named
     video.ts          Parses pasted links into safe, embeddable references
+    supabase.ts       Project config, anonymous sign-in, readable error text
+    crew.ts           Crew data layer; every call returns a result, never throws
     useWakeLock.ts    Keeps the screen on during a session
     useNav.ts         Screen stack wired to the History API
     stats.ts          Session and client summaries, work:rest ratio
@@ -156,6 +198,8 @@ src/
     colors.ts         Grade, completion and effort colour scales
   components/        Shared UI and the attempt-logging sheet
   screens/           One file per screen
+supabase/
+  schema.sql         Tables, RLS policies and the join/create functions
 scripts/
   make-icons.mjs     Generates the launcher icons (no image dependencies)
 ```
