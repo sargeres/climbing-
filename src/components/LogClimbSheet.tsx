@@ -93,6 +93,26 @@ export function LogClimbSheet({
           </div>
         )}
 
+        {sharing && (
+          <div className="field">
+            <label>Crew</label>
+            <button
+              className={`btn btn-block${sharing.shared ? '' : ' btn-primary'}`}
+              disabled={sharing.busy}
+              onClick={sharing.onToggle}
+            >
+              <span className="share-state">
+                {sharing.busy
+                  ? 'Working…'
+                  : sharing.shared
+                    ? '✓ On the crew board — tap to remove'
+                    : 'Share this go with the crew'}
+              </span>
+            </button>
+            {sharing.error && <div className="error-note">{sharing.error}</div>}
+          </div>
+        )}
+
         <div className="field">
           <label>Grade</label>
           <GradePicker value={grade} onChange={setGrade} />
@@ -210,26 +230,6 @@ export function LogClimbSheet({
             </span>
           )}
         </div>
-
-        {sharing && (
-          <div className="field">
-            <label>Crew</label>
-            <button
-              className={`btn btn-block${sharing.shared ? '' : ' btn-primary'}`}
-              disabled={sharing.busy}
-              onClick={sharing.onToggle}
-            >
-              <span className="share-state">
-                {sharing.busy
-                  ? 'Working…'
-                  : sharing.shared
-                    ? '✓ On the crew board — tap to remove'
-                    : 'Share this go with the crew'}
-              </span>
-            </button>
-            {sharing.error && <div className="error-note">{sharing.error}</div>}
-          </div>
-        )}
 
         <button className="btn btn-primary btn-lg btn-block" disabled={!grade} onClick={submit}>
           {grade ? submitLabel : 'Pick a grade first'}
