@@ -160,6 +160,16 @@ grant execute on function public.join_crew(text, text) to anon, authenticated;
 grant execute on function public.create_crew(text, text) to anon, authenticated;
 grant execute on function public.is_crew_member(uuid) to anon, authenticated;
 
+-- ----------------------------------------------------------------- grants --
+-- Supabase's default privileges normally cover these, but stating them makes
+-- the schema self-contained: without a grant the request fails with "permission
+-- denied for table", which looks nothing like a policy problem and sends you
+-- hunting in the wrong place. RLS still decides which rows are visible.
+grant select on public.crews, public.crew_members, public.posts, public.comments
+  to anon, authenticated;
+grant insert, update, delete on public.posts, public.comments to anon, authenticated;
+grant delete on public.crew_members to anon, authenticated;
+
 -- -------------------------------------------------------------------- RLS --
 alter table public.crews        enable row level security;
 alter table public.crew_members enable row level security;
@@ -219,3 +229,20 @@ create policy comments_insert on public.comments
 drop policy if exists comments_delete_own on public.comments;
 create policy comments_delete_own on public.comments
   for delete using (user_id = auth.uid());
+
+
+-- ============================================================================
+-- Verification
+--
+-- Paste this separately to confirm everything landed. Expect: 3 functions,
+-- 4 tables all with rowsecurity = true, and 10 policies.
+-- ============================================================================
+-- select routine_name from information_schema.routines
+--   where routine_schema = 'public'
+--     and routine_name in ('create_crew', 'join_crew', 'is_crew_member');
+--
+-- select tablename, rowsecurity from pg_tables
+--   where schemaname = 'public'
+--     and tablename in ('crews', 'crew_members', 'posts', 'comments');
+--
+-- select count(*) as policies from pg_policies where schemaname = 'public';
