@@ -266,7 +266,20 @@ export function ActiveSessionScreen({
         ) : (
           <div className="list">
             {[...climbs].reverse().map((climb) => (
-              <ClimbRow key={climb.id} climb={climb} onClick={() => setEditing(climb)} />
+              <ClimbRow
+                key={climb.id}
+                climb={climb}
+                onClick={() => setEditing(climb)}
+                share={
+                  crewIdentity
+                    ? {
+                        shared: sharedIds.has(climb.id),
+                        busy: shareBusy,
+                        onToggle: () => void toggleShare(climb),
+                      }
+                    : undefined
+                }
+              />
             ))}
           </div>
         )}

@@ -141,47 +141,92 @@ export function GradeHistogram({ climbs }: { climbs: Climb[] }) {
 }
 
 /** One logged attempt, with the rest that preceded it shown above the row. */
-export function ClimbRow({ climb, onClick }: { climb: Climb; onClick?: () => void }) {
+export interface ShareState {
+  shared: boolean
+  busy: boolean
+  onToggle: () => void
+}
+
+/**
+ * One logged attempt.
+ *
+ * The share control lives here rather than only inside the edit sheet. It was
+ * originally tucked below the grade picker, slider, effort grid and video field
+ * of a sheet you had to know to open — which meant the person who asked for the
+ * feature could not find it. Sharing a climb belongs on the climb.
+ *
+ * A row is therefore a container with two buttons rather than one big button:
+ * nesting a button inside a button is invalid, and the share target needs its
+ * own hit area anyway.
+ */
+export function ClimbRow({
+  climb,
+  onClick,
+  share,
+}: {
+  climb: Climb
+  onClick?: () => void
+  share?: ShareState
+}) {
   const pctColor = completionColor(climb.completion)
   return (
-    <button className="list-item" onClick={onClick} style={{ alignItems: 'stretch' }}>
-      <GradePill grade={climb.grade} />
-      <div className="list-main">
-        <div className="list-title">
-          {climb.problemName.trim() || <span className="faint">Unnamed problem</span>}
-        </div>
-        <div className="row" style={{ gap: 8, marginTop: 6 }}>
-          <div className="bar" style={{ flex: 1 }}>
-            <div
-              className="bar-fill"
-              style={{ width: `${climb.completion}%`, background: pctColor }}
-            />
+    <div className="list-item climb-row">
+      <button className="climb-main" onClick={onClick}>
+        <GradePill grade={climb.grade} />
+        <div className="list-main">
+          <div className="list-title">
+            {climb.problemName.trim() || <span className="faint">Unnamed problem</span>}
           </div>
-          <span className="tiny" style={{ color: pctColor, fontWeight: 650, minWidth: 38, textAlign: 'right' }}>
-            {climb.completion}%
-          </span>
+          <div className="row" style={{ gap: 8, marginTop: 6 }}>
+            <div className="bar" style={{ flex: 1 }}>
+              <div
+                className="bar-fill"
+                style={{ width: `${climb.completion}%`, background: pctColor }}
+              />
+            </div>
+            <span
+              className="tiny"
+              style={{ color: pctColor, fontWeight: 650, minWidth: 38, textAlign: 'right' }}
+            >
+              {climb.completion}%
+            </span>
+          </div>
+          <div className="tiny faint" style={{ marginTop: 5 }}>
+            {climb.videoUrl && (
+              <>
+                <span style={{ color: 'var(--brand)', fontWeight: 650 }}>▶ Video</span>
+                {' · '}
+              </>
+            )}
+            Effort {climb.effort}/10
+            {climb.climbSec > 0 && (
+              <>
+                {' · '}
+                <span style={{ color: 'var(--climb)' }}>
+                  {formatDurationShort(Math.round(climb.climbSec))} on the wall
+                </span>
+              </>
+            )}
+            {' · '}
+            {formatDurationShort(Math.round(climb.restSec))} rest before
+          </div>
         </div>
-        <div className="tiny faint" style={{ marginTop: 5 }}>
-          {climb.videoUrl && (
-            <>
-              <span style={{ color: 'var(--brand)', fontWeight: 650 }}>▶ Video</span>
-              {' · '}
-            </>
-          )}
-          Effort {climb.effort}/10
-          {climb.climbSec > 0 && (
-            <>
-              {' · '}
-              <span style={{ color: 'var(--climb)' }}>
-                {formatDurationShort(Math.round(climb.climbSec))} on the wall
-              </span>
-            </>
-          )}
-          {' · '}
-          {formatDurationShort(Math.round(climb.restSec))} rest before
-        </div>
-      </div>
-    </button>
+      </button>
+
+      {share && (
+        <button
+          className={`climb-share${share.shared ? ' shared' : ''}`}
+          onClick={share.onToggle}
+          disabled={share.busy}
+          aria-pressed={share.shared}
+          aria-label={share.shared ? 'On the crew board — tap to remove' : 'Share with crew'}
+          title={share.shared ? 'On the crew board — tap to remove' : 'Share with crew'}
+        >
+          {share.busy ? '…' : share.shared ? '✓' : '↗'}
+          <span className="climb-share-label">{share.shared ? 'Shared' : 'Share'}</span>
+        </button>
+      )}
+    </div>
   )
 }
 

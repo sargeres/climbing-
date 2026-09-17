@@ -1005,3 +1005,64 @@ input[type='range']::-moz-range-thumb {
   align-items: center;
   gap: 6px;
 }
+
+/* ------------------------------------------------------ attempt sharing -- */
+.climb-row {
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+  gap: 0;
+}
+
+.climb-main {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.climb-main:active {
+  background: var(--surface-2);
+}
+
+.climb-share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: none;
+  width: 62px;
+  padding: 0 4px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.climb-share:active {
+  background: var(--surface-3);
+}
+
+.climb-share.shared {
+  color: var(--send);
+  background: #10261f;
+}
+
+.climb-share:disabled {
+  opacity: 0.5;
+}
+
+.climb-share-label {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}

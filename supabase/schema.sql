@@ -20,8 +20,6 @@
 -- on crew_members that queried crew_members would recurse.
 -- ============================================================================
 
-create extension if not exists pgcrypto;
-
 -- ------------------------------------------------------------------ tables --
 create table if not exists public.crews (
   id          uuid primary key default gen_random_uuid(),
@@ -143,7 +141,14 @@ begin
   end if;
 
   -- 32 hex chars: not guessable, and still fine in a URL.
-  v_code := encode(gen_random_bytes(16), 'hex');
+  --
+  -- Deliberately gen_random_uuid() and not pgcrypto's gen_random_bytes().
+  -- Supabase installs extensions into the `extensions` schema, and this
+  -- function pins search_path to public for safety — so pgcrypto is invisible
+  -- here and the call fails at runtime with "function gen_random_bytes(integer)
+  -- does not exist", long after the schema appeared to install cleanly.
+  -- gen_random_uuid() is core Postgres, in pg_catalog, and always reachable.
+  v_code := replace(gen_random_uuid()::text, '-', '');
 
   insert into public.crews (name, join_code)
   values (trim(p_name), v_code)
