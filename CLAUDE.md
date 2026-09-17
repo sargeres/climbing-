@@ -15,8 +15,8 @@ Live on `main`: client logging, the two-phase stopwatch (rest + time on the
 wall), GPS venue recognition, video links, the session snapshot, the rest
 alarm, the Allez celebration, and crews.
 
-**Open: PR #4** — ready for review, CI green, not merged. Two fixes:
-the `gen_random_bytes` schema bug, and moving the crew share control onto the
+**No open PRs.** PR #4 merged on 17 Sep and deployed (`de8dee1`): the
+`gen_random_bytes` schema bug, and the crew share control moved onto the
 attempt row where it can be found.
 
 **Never exercised end to end:** a real share against the live Supabase project.
