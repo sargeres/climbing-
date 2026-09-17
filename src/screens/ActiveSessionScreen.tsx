@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { ClimbRow, EmptyState, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet, type ClimbDraft } from '../components/LogClimbSheet'
-import { clearRestTimer, useRestTimer } from '../lib/useRestTimer'
+import { clearSessionTimer, useSessionTimer } from '../lib/useSessionTimer'
 import { useWakeLock } from '../lib/useWakeLock'
 import { formatDuration, formatDurationShort } from '../lib/format'
-import { summarise } from '../lib/stats'
+import { summarise, workRestRatio } from '../lib/stats'
 import type { Climb } from '../lib/types'
 import type { Screen } from '../lib/useNav'
 
@@ -28,11 +28,11 @@ export function ActiveSessionScreen({
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [, tick] = useState(0)
 
-  const rest = useRestTimer(sessionId)
+  const timer = useSessionTimer(sessionId)
   const live = session?.endedAt === null
   useWakeLock(Boolean(live))
 
-  // Keep the session clock honest without coupling it to the rest timer.
+  // Keep the session clock honest without coupling it to the stopwatch.
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 1000)
     return () => window.clearInterval(id)
@@ -44,8 +44,8 @@ export function ActiveSessionScreen({
   useEffect(() => {
     if (autoStarted.current || !live) return
     autoStarted.current = true
-    if (!rest.running && rest.elapsedSec === 0) rest.start()
-  }, [live, rest])
+    if (!timer.running && timer.restSec === 0 && timer.climbSec === 0) timer.start()
+  }, [live, timer])
 
   if (!session) {
     return (
@@ -59,18 +59,25 @@ export function ActiveSessionScreen({
   }
 
   const summary = summarise(climbs)
+  const ratio = workRestRatio(summary)
   const elapsed = ((session.endedAt ?? Date.now()) - session.startedAt) / 1000
+  const climbing = timer.phase === 'climb'
 
   const saveClimb = (draft: ClimbDraft) => {
-    store.addClimb({ sessionId, ...draft, restSec: Math.round(rest.elapsedSec) })
+    store.addClimb({
+      sessionId,
+      ...draft,
+      restSec: Math.round(timer.restSec),
+      climbSec: Math.round(timer.climbSec),
+    })
     setLogging(false)
-    // Logging an attempt ends one rest and starts the next.
-    rest.restart()
+    // Logging an attempt closes out both clocks and begins the next rest.
+    timer.startNextRest()
   }
 
   const endSession = () => {
     store.endSession(sessionId)
-    clearRestTimer(sessionId)
+    clearSessionTimer(sessionId)
     setConfirmEnd(false)
     onEnded({ name: 'sessionDetail', sessionId })
   }
@@ -84,18 +91,47 @@ export function ActiveSessionScreen({
       />
 
       <main className="content has-dock">
-        <div className={`timer-card${rest.running ? ' running' : ''}`}>
+        <div
+          className={`timer-card${timer.running ? ' running' : ''}${climbing ? ' climbing' : ''}`}
+        >
           <div className="timer-label">
-            {rest.running && <span className="pulse" />}
-            {rest.running ? 'Resting' : 'Rest paused'}
+            {timer.running && <span className="pulse" />}
+            {climbing
+              ? timer.running
+                ? 'Climbing'
+                : 'Climbing — paused'
+              : timer.running
+                ? 'Resting'
+                : 'Rest paused'}
           </div>
-          <div className="timer-value">{formatDuration(rest.elapsedSec)}</div>
-          <div className="row" style={{ gap: 8, marginTop: 14 }}>
-            <button className="btn btn-block" onClick={rest.toggle}>
-              {rest.running ? 'Pause' : 'Resume'}
+          <div className="timer-value">{formatDuration(timer.displaySec)}</div>
+
+          {climbing ? (
+            <div className="timer-sub">
+              Rest before this go · {formatDurationShort(Math.round(timer.restSec))}
+            </div>
+          ) : timer.climbSec > 0 ? (
+            <div className="timer-sub">
+              On the wall so far · {formatDurationShort(Math.round(timer.climbSec))}
+            </div>
+          ) : (
+            <div className="timer-sub">Tap Start climbing when they pull on</div>
+          )}
+
+          <button
+            className={`btn btn-block btn-lg ${climbing ? 'btn-rest' : 'btn-climb'}`}
+            style={{ marginTop: 14 }}
+            onClick={() => timer.setPhase(climbing ? 'rest' : 'climb')}
+          >
+            {climbing ? 'Back to rest' : 'Start climbing'}
+          </button>
+
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <button className="btn btn-block" onClick={timer.toggle}>
+              {timer.running ? 'Pause' : 'Resume'}
             </button>
-            <button className="btn btn-block" onClick={rest.restart}>
-              Reset
+            <button className="btn btn-block" onClick={timer.resetPhase}>
+              Reset {climbing ? 'go' : 'rest'}
             </button>
           </div>
         </div>
@@ -104,20 +140,19 @@ export function ActiveSessionScreen({
           <Stat value={summary.climbCount} label="Attempts" />
           <Stat value={summary.sendCount} label="Sent" />
           <Stat value={summary.hardestSend ?? '—'} label="Hardest send" />
-          <Stat
-            value={summary.climbCount ? `${summary.avgEffort}` : '—'}
-            label="Avg effort"
-          />
+          <Stat value={summary.climbCount ? summary.avgEffort : '—'} label="Avg effort" />
         </div>
 
         <span className="section-label">
-          This session{climbs.length > 0 && ` · ${formatDurationShort(summary.totalRestSec)} resting`}
+          This session
+          {climbs.length > 0 && ` · ${formatDurationShort(summary.totalRestSec)} resting`}
+          {ratio && ` · work:rest ${ratio}`}
         </span>
 
         {climbs.length === 0 ? (
           <EmptyState
             title="No attempts yet"
-            body="Tap Log attempt after each go. The rest timer above is captured with it."
+            body="Start climbing when they pull on, then tap Log attempt when they come off. Both clocks are saved with it."
           />
         ) : (
           <div className="list">
@@ -140,7 +175,8 @@ export function ActiveSessionScreen({
 
       {logging && (
         <LogClimbSheet
-          restSec={rest.elapsedSec}
+          restSec={timer.restSec}
+          climbSec={timer.climbSec}
           problemSuggestions={store.problemNamesAtVenue(session.venue)}
           onSubmit={saveClimb}
           onClose={() => setLogging(false)}
@@ -152,6 +188,8 @@ export function ActiveSessionScreen({
           title="Edit attempt"
           submitLabel="Save changes"
           initial={editing}
+          restSec={editing.restSec}
+          climbSec={editing.climbSec}
           problemSuggestions={store.problemNamesAtVenue(session.venue)}
           onSubmit={(draft) => {
             store.updateClimb(editing.id, draft)

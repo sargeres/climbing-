@@ -12,6 +12,8 @@
   --brand: #ff6b35;
   --brand-dim: #7a3319;
   --send: #34d399;
+  --climb: #34d399;
+  --climb-dim: #14503c;
   --danger: #f87171;
 
   --radius: 14px;
@@ -365,6 +367,32 @@ h3 {
   background: linear-gradient(160deg, #1d1410, var(--surface) 62%);
 }
 
+/* Climbing reads green against resting's orange, so a glance at the phone on
+   the mat tells you which clock is running. */
+.timer-card.climbing.running {
+  border-color: var(--climb-dim);
+  background: linear-gradient(160deg, #0f2420, var(--surface) 62%);
+}
+
+.timer-sub {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-climb {
+  background: var(--climb);
+  border-color: var(--climb);
+  color: #06110d;
+}
+
+.btn-rest {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #17110d;
+}
+
 .timer-value {
   font-size: 54px;
   font-weight: 700;
@@ -384,6 +412,16 @@ h3 {
 
 .timer-card.running .timer-label {
   color: var(--brand);
+}
+
+/* Declared after the resting colours above: same specificity, so the climbing
+   phase has to come later to win. */
+.timer-card.climbing .timer-label {
+  color: var(--climb);
+}
+
+.timer-card.climbing .pulse {
+  background: var(--climb);
 }
 
 .pulse {

@@ -25,6 +25,15 @@ export interface Session {
   /** null while the session is still running. */
   endedAt: number | null
   notes: string
+  /** Where the session was logged, when the device could tell us. */
+  coords: Coords | null
+}
+
+export interface Coords {
+  lat: number
+  lon: number
+  /** Radius of uncertainty in metres, as reported by the browser. */
+  accuracyM: number
 }
 
 export interface Climb {
@@ -37,12 +46,18 @@ export interface Climb {
   completion: number
   /** Perceived effort, 1–10. */
   effort: number
-  /** Seconds rested immediately before this attempt, from the rest timer. */
+  /** Seconds rested immediately before this attempt, from the timer. */
   restSec: number
+  /** Seconds spent on the wall for this attempt. 0 when it wasn't timed. */
+  climbSec: number
   loggedAt: number
 }
 
-export const DATA_VERSION = 1
+/**
+ * 1 → 2 added per-attempt climb time and session coordinates. Both are
+ * backfilled by `migrate`, so a v1 export restores without losing anything.
+ */
+export const DATA_VERSION = 2
 
 export interface AppData {
   version: number

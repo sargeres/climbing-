@@ -15,6 +15,7 @@ const QUICK_PERCENTS = [25, 50, 75, 100]
 
 export function LogClimbSheet({
   restSec,
+  climbSec,
   problemSuggestions,
   initial,
   title = 'Log attempt',
@@ -24,6 +25,8 @@ export function LogClimbSheet({
 }: {
   /** Rest measured since the previous attempt; shown so it can be sanity-checked. */
   restSec?: number
+  /** Time on the wall for this go, when it was timed. */
+  climbSec?: number
   problemSuggestions?: string[]
   initial?: Partial<ClimbDraft>
   title?: string
@@ -46,10 +49,24 @@ export function LogClimbSheet({
   return (
     <Sheet title={title} onClose={onClose}>
       <div className="stack" style={{ gap: 20 }}>
-        {restSec !== undefined && (
-          <div className="tiny muted" style={{ marginTop: -8 }}>
-            Rest before this attempt:{' '}
-            <strong style={{ color: 'var(--text)' }}>{formatDurationShort(Math.round(restSec))}</strong>
+        {(restSec !== undefined || climbSec !== undefined) && (
+          <div className="row" style={{ marginTop: -8, gap: 16 }}>
+            {climbSec !== undefined && climbSec > 0 && (
+              <div className="tiny muted">
+                On the wall:{' '}
+                <strong style={{ color: 'var(--climb)' }}>
+                  {formatDurationShort(Math.round(climbSec))}
+                </strong>
+              </div>
+            )}
+            {restSec !== undefined && (
+              <div className="tiny muted">
+                Rest before:{' '}
+                <strong style={{ color: 'var(--text)' }}>
+                  {formatDurationShort(Math.round(restSec))}
+                </strong>
+              </div>
+            )}
           </div>
         )}
 

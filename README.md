@@ -21,19 +21,44 @@ used before come back as one-tap chips.
 | Completed | 0–100% on a slider, with 25/50/75/100 shortcuts |
 | Perceived effort | 1–10, labelled from *Warm-up* to *Absolute max* |
 | Problem name | Optional; previously logged names at this venue are offered as chips |
-| Rest | Captured automatically from the rest timer |
+| Time on the wall | Captured automatically from the stopwatch |
+| Rest | Captured automatically from the stopwatch |
 
-**The rest timer** runs by itself. It starts when the session starts, and each
-time an attempt is saved the elapsed rest is stored with it and the clock
-restarts. Pause and reset are there when a session doesn't go to plan.
+**The stopwatch runs itself and tracks two clocks.** It starts resting when the
+session does. Tap **Start climbing** when the climber pulls on and the clock
+switches to timing the go; tap **Log attempt** when they come off and both
+durations — the rest beforehand and the time on the wall — are saved with that
+attempt, after which the clocks zero and the next rest begins. Pause, and a
+reset that clears only the clock you are looking at, are there when a session
+doesn't go to plan.
+
+Never tapping *Start climbing* is fine: the attempt simply records rest only, as
+it did before climb timing existed.
+
+Because both are tracked, each session and client also reports a **work:rest
+ratio** — `1 : 6` means six seconds resting for every second climbing.
 
 Elapsed time is always derived from wall-clock timestamps, so locking the phone,
-switching apps or reloading mid-rest all keep the true rest duration. The screen
-is held awake while a session is running.
+switching apps or reloading mid-go all keep the true durations, and the phase
+you were in survives a reload. The screen is held awake while a session is
+running.
+
+**Venues recognise themselves.** The first time you climb somewhere you type the
+name as normal and the app quietly records the coordinates alongside the
+session. On later visits it matches your position against the venues it already
+knows and pre-fills the field, showing how far away it thinks you are. You can
+always type over it.
+
+This needs no geocoding service and no network — matching is arithmetic on
+coordinates you have already collected, so it works offline in a basement
+bouldering gym. Indoors the position comes from wifi rather than satellites,
+which is accurate enough to tell one venue from another but not two gyms in one
+building. Declining the location permission costs nothing but the pre-fill.
 
 **After the session**, get a breakdown: attempts, sends, hardest send, average
-completion, average effort, total and average rest, and an attempts-by-grade
-histogram with sends shown as the solid portion of each bar.
+completion, average effort, total and average rest, time on the wall, work:rest
+ratio, and an attempts-by-grade histogram with sends shown as the solid portion
+of each bar.
 
 **Per client**, the same stats across every session, plus a best-send-per-session
 strip to see whether the coaching is moving the needle.
@@ -46,7 +71,8 @@ third party ever sees your clients' names.
 That also means a lost or wiped phone takes the log with it, so **Settings →
 Export backup (JSON)** is the safety net — it restores through *Restore from
 backup* on any device. There's also a CSV export (one row per attempt, joined to
-its client and venue) for spreadsheets.
+its client, venue, both durations and the session's coordinates) for
+spreadsheets.
 
 ## Running it
 
@@ -76,14 +102,16 @@ is served from a subdirectory.
 ```
 src/
   lib/
-    types.ts         Client, Session, Climb, and the V-grade ladder
-    db.ts            IndexedDB persistence (one record, debounced writes)
-    store.tsx        React context: all reads and mutations
-    useRestTimer.ts  Timestamp-based rest stopwatch, survives reloads
-    useWakeLock.ts   Keeps the screen on during a session
-    useNav.ts        Screen stack wired to the History API
-    stats.ts         Session and client summaries
-    colors.ts        Grade, completion and effort colour scales
+    types.ts          Client, Session, Climb, and the V-grade ladder
+    db.ts             IndexedDB persistence and forward migration
+    store.tsx         React context: all reads and mutations
+    useSessionTimer.ts  Two-phase stopwatch (rest / climb), survives reloads
+    useGeolocation.ts Single position fix for tagging a session
+    venues.ts         Matches a fix against venues you have already named
+    useWakeLock.ts    Keeps the screen on during a session
+    useNav.ts         Screen stack wired to the History API
+    stats.ts          Session and client summaries, work:rest ratio
+    colors.ts         Grade, completion and effort colour scales
   components/        Shared UI and the attempt-logging sheet
   screens/           One file per screen
 scripts/
@@ -92,9 +120,14 @@ scripts/
 
 Three decisions worth knowing about:
 
-- **One blob, not a schema.** All data lives in a single IndexedDB record. A
-  full book of clients is well under a megabyte a year, so this keeps reads
-  synchronous in React and makes export/import identical to storage.
+- **One blob, not a schema.** All data lives in a single IndexedDB record,
+  written on every change rather than debounced. A full book of clients is well
+  under a megabyte a year, so this keeps reads synchronous in React, makes
+  export/import identical to storage, and means a tap is never still waiting on
+  a timer when the phone gets locked.
+- **Migration is per field, not per file.** `migrate` in `db.ts` rebuilds every
+  record with defaults, so a log written by an older version loads with the
+  fields it never had filled in rather than arriving as `undefined`.
 - **Navigation is a real stack.** `useNav` pushes History entries, so Android's
   back gesture walks back through the app instead of closing it. Bottom sheets
   push their own entry, so back dismisses the sheet first.

@@ -162,7 +162,17 @@ export function ClimbRow({ climb, onClick }: { climb: Climb; onClick?: () => voi
           </span>
         </div>
         <div className="tiny faint" style={{ marginTop: 5 }}>
-          Effort {climb.effort}/10 · {formatDurationShort(Math.round(climb.restSec))} rest before
+          Effort {climb.effort}/10
+          {climb.climbSec > 0 && (
+            <>
+              {' · '}
+              <span style={{ color: 'var(--climb)' }}>
+                {formatDurationShort(Math.round(climb.climbSec))} on the wall
+              </span>
+            </>
+          )}
+          {' · '}
+          {formatDurationShort(Math.round(climb.restSec))} rest before
         </div>
       </div>
     </button>

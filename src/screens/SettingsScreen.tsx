@@ -32,8 +32,11 @@ function toCsv(data: AppData): string {
     'grade',
     'completion_pct',
     'effort',
+    'climb_seconds',
     'rest_seconds',
     'logged_at',
+    'latitude',
+    'longitude',
   ]
   const rows = [...data.climbs]
     .sort((a, b) => a.loggedAt - b.loggedAt)
@@ -48,8 +51,11 @@ function toCsv(data: AppData): string {
         climb.grade,
         climb.completion,
         climb.effort,
+        Math.round(climb.climbSec),
         Math.round(climb.restSec),
         new Date(climb.loggedAt).toISOString(),
+        session?.coords ? session.coords.lat.toFixed(6) : '',
+        session?.coords ? session.coords.lon.toFixed(6) : '',
       ].map(csvCell)
     })
   return [header.join(','), ...rows.map((r) => r.join(','))].join('\n')

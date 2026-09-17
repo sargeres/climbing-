@@ -15,6 +15,7 @@ import {
   type AppData,
   type Client,
   type Climb,
+  type Coords,
   type Grade,
   type Session,
 } from './types'
@@ -27,7 +28,7 @@ interface Store {
   addClient: (name: string, notes?: string) => Client
   updateClient: (id: string, patch: Partial<Omit<Client, 'id'>>) => void
   deleteClient: (id: string) => void
-  startSession: (clientId: string, venue: string) => Session
+  startSession: (clientId: string, venue: string, coords?: Coords | null) => Session
   endSession: (id: string) => void
   updateSession: (id: string, patch: Partial<Omit<Session, 'id'>>) => void
   deleteSession: (id: string) => void
@@ -47,7 +48,8 @@ const StoreContext = createContext<Store | null>(null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(emptyData)
   const [ready, setReady] = useState(false)
-  const saveTimer = useRef<number | undefined>(undefined)
+  const latest = useRef<AppData>(data)
+  latest.current = data
 
   useEffect(() => {
     let cancelled = false
@@ -61,14 +63,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Debounced write: a rest timer tick never touches storage, but every edit
-  // lands within a few hundred ms of the tap that made it.
+  // Persist on every change, with no debounce.
+  //
+  // React batches the updates from one tap into a single commit, so this is one
+  // write per user action rather than per keystroke — and free-text fields hold
+  // their own local state and only reach the store on blur. A delay here would
+  // buy nothing and could lose the write: ending a session navigates straight to
+  // the summary, so the phone can be locked or the app switched away a moment
+  // later, before a pending timer would ever have fired.
   useEffect(() => {
     if (!ready) return
-    window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => void saveData(data), 250)
-    return () => window.clearTimeout(saveTimer.current)
+    void saveData(data)
   }, [data, ready])
+
+  // Belt and braces for a write still in flight when the app goes away. pagehide
+  // is the event that actually fires on mobile, where a backgrounded tab may be
+  // discarded without ever firing beforeunload.
+  useEffect(() => {
+    if (!ready) return
+    const flush = () => void saveData(latest.current)
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHidden)
+    }
+  }, [ready])
 
   const addClient = useCallback((name: string, notes = '') => {
     const client: Client = {
@@ -101,7 +124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const startSession = useCallback((clientId: string, venue: string) => {
+  const startSession = useCallback((clientId: string, venue: string, coords: Coords | null = null) => {
     const session: Session = {
       id: newId(),
       clientId,
@@ -109,6 +132,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       startedAt: Date.now(),
       endedAt: null,
       notes: '',
+      coords,
     }
     setData((d) => ({ ...d, sessions: [...d.sessions, session] }))
     return session

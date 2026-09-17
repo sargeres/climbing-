@@ -3,7 +3,7 @@ import { useStore } from '../lib/store'
 import { ClimbRow, EmptyState, GradeHistogram, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet } from '../components/LogClimbSheet'
 import { formatDateLong, formatDuration, formatDurationShort, formatTime } from '../lib/format'
-import { summarise } from '../lib/stats'
+import { summarise, workRestRatio } from '../lib/stats'
 import type { Climb } from '../lib/types'
 
 export function SessionDetailScreen({
@@ -37,6 +37,7 @@ export function SessionDetailScreen({
   }
 
   const summary = summarise(climbs)
+  const ratio = workRestRatio(summary)
   const duration = ((session.endedAt ?? Date.now()) - session.startedAt) / 1000
   const canReopen = session.endedAt !== null && store.activeSession === null
 
@@ -86,6 +87,15 @@ export function SessionDetailScreen({
             }
             label="Avg rest"
           />
+          <Stat
+            value={
+              summary.timedClimbCount
+                ? formatDurationShort(summary.totalClimbSec)
+                : '—'
+            }
+            label="Time on wall"
+          />
+          <Stat value={ratio ?? '—'} label="Work : rest" />
         </div>
 
         <span className="section-label">Attempts</span>

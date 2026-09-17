@@ -1,4 +1,14 @@
-import { DATA_VERSION, emptyData, type AppData } from './types'
+import {
+  DATA_VERSION,
+  EFFORT_MAX,
+  EFFORT_MIN,
+  GRADES,
+  emptyData,
+  newId,
+  type AppData,
+  type Coords,
+  type Grade,
+} from './types'
 
 /**
  * The whole log lives in a single IndexedDB record. A coach with a full book of
@@ -59,15 +69,70 @@ export async function saveData(data: AppData): Promise<void> {
   }
 }
 
-/** Accepts anything shaped like an export file and fills in what is missing. */
+/**
+ * Accepts anything shaped like an export file and fills in what is missing.
+ *
+ * Fields are normalised record by record rather than trusted wholesale, so a
+ * v1 log — which had no climb times and no coordinates — loads with those
+ * fields defaulted instead of arriving as `undefined` and breaking arithmetic
+ * downstream.
+ */
 export function migrate(raw: unknown): AppData {
   const base = emptyData()
   if (!raw || typeof raw !== 'object') return base
   const input = raw as Partial<AppData>
+
+  const num = (value: unknown, fallback = 0): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : fallback
+
+  const str = (value: unknown, fallback = ''): string =>
+    typeof value === 'string' ? value : fallback
+
+  const coords = (value: unknown): Coords | null => {
+    if (!value || typeof value !== 'object') return null
+    const c = value as Partial<Coords>
+    if (typeof c.lat !== 'number' || typeof c.lon !== 'number') return null
+    return { lat: c.lat, lon: c.lon, accuracyM: num(c.accuracyM, 0) }
+  }
+
+  const list = <T,>(value: unknown, map: (item: Record<string, unknown>) => T): T[] =>
+    Array.isArray(value)
+      ? value
+          .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+          .map(map)
+      : []
+
   return {
     version: DATA_VERSION,
-    clients: Array.isArray(input.clients) ? input.clients : base.clients,
-    sessions: Array.isArray(input.sessions) ? input.sessions : base.sessions,
-    climbs: Array.isArray(input.climbs) ? input.climbs : base.climbs,
+    clients: list(input.clients, (c) => ({
+      id: str(c.id) || newId(),
+      name: str(c.name, 'Unnamed'),
+      notes: str(c.notes),
+      createdAt: num(c.createdAt, Date.now()),
+      archivedAt: typeof c.archivedAt === 'number' ? c.archivedAt : null,
+    })),
+    sessions: list(input.sessions, (s) => ({
+      id: str(s.id) || newId(),
+      clientId: str(s.clientId),
+      venue: str(s.venue),
+      startedAt: num(s.startedAt, Date.now()),
+      endedAt: typeof s.endedAt === 'number' ? s.endedAt : null,
+      notes: str(s.notes),
+      coords: coords(s.coords),
+    })),
+    climbs: list(input.climbs, (c) => ({
+      id: str(c.id) || newId(),
+      sessionId: str(c.sessionId),
+      problemName: str(c.problemName),
+      grade: (GRADES as readonly string[]).includes(str(c.grade))
+        ? (c.grade as Grade)
+        : GRADES[0],
+      completion: Math.min(100, Math.max(0, num(c.completion))),
+      effort: Math.min(EFFORT_MAX, Math.max(EFFORT_MIN, num(c.effort, EFFORT_MIN))),
+      restSec: num(c.restSec),
+      // v1 logs had no climb timing; 0 reads as "not timed" everywhere.
+      climbSec: num(c.climbSec),
+      loggedAt: num(c.loggedAt, Date.now()),
+    })),
   }
 }
