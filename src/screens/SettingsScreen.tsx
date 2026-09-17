@@ -37,6 +37,7 @@ function toCsv(data: AppData): string {
     'logged_at',
     'latitude',
     'longitude',
+    'video_url',
   ]
   const rows = [...data.climbs]
     .sort((a, b) => a.loggedAt - b.loggedAt)
@@ -56,6 +57,7 @@ function toCsv(data: AppData): string {
         new Date(climb.loggedAt).toISOString(),
         session?.coords ? session.coords.lat.toFixed(6) : '',
         session?.coords ? session.coords.lon.toFixed(6) : '',
+        climb.videoUrl,
       ].map(csvCell)
     })
   return [header.join(','), ...rows.map((r) => r.join(','))].join('\n')

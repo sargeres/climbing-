@@ -132,6 +132,7 @@ export function migrate(raw: unknown): AppData {
       restSec: num(c.restSec),
       // v1 logs had no climb timing; 0 reads as "not timed" everywhere.
       climbSec: num(c.climbSec),
+      videoUrl: str(c.videoUrl),
       loggedAt: num(c.loggedAt, Date.now()),
     })),
   }
