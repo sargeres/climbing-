@@ -20,28 +20,38 @@ attempt row).
 
 **Crews have now run against the live project.** Creating a crew, joining by
 invite link, sharing an attempt and reading the feed all work on real Supabase.
-One thing does not: **commenting fails with "new row violates row-level
-security policy for table comments"**, and the root cause is not yet confirmed
-— see below.
+Commenting failed with "new row violates row-level security policy for table
+comments" until the cause was found — see below. It needs `schema.sql` re-run
+against the project before it works.
 
-## The comment RLS failure
+## The comment RLS failure — found
 
-Three different causes produce that byte-identical sentence. Verified against
-real Postgres:
+**Cause: a truncated paste of `schema.sql`.** The live database had 7 of 10
+policies. `crews`, `crew_members` and `posts` were complete; `comments` had
+**none at all**, and RLS on a table with no policies denies everything. The
+three comments policies are the last three statements in the file, so a paste
+that stopped after `posts_delete_own` installed cleanly and said nothing.
 
-| Cause | Ruled out? |
-|---|---|
-| Client sends `user_id` ≠ `auth.uid()` | Now impossible — the insert omits `user_id` and lets the column default fill it |
-| Commenter is not a crew member | Ruled out by observation: the feed renders, and `posts_select` requires membership |
-| `comments_insert` policy missing from the live database | **Not ruled out.** A partial or older schema run leaves exactly this |
+Reproduced exactly: cutting `schema.sql` at that line and running it produces
+7 policies, no complaint, and a `diagnose.sql` report identical to the one the
+live database gave. Re-running the whole file repairs it and both members can
+comment again.
 
-Because the message cannot distinguish them, `supabase/diagnose.sql` exists:
-paste it into the SQL editor and it reports the installed policy count and
-actually attempts the insert as each member inside a rolled-back
-subtransaction. Verified to pass on a healthy database, to name the missing
-policy on a broken one, and to store nothing either way.
+Note it was never a policy *bug* — the policy is correct, and a joined member
+can comment on another member's post when the policy is actually installed.
+Three causes produce that byte-identical sentence; the other two (a client
+`user_id` disagreeing with `auth.uid()`, a commenter who is not a member) were
+ruled out before this one was confirmed.
 
-Re-running `supabase/schema.sql` repairs a database missing policies — tested.
+**`schema.sql` now ends with a self-check** that raises if fewer than 10
+policies are installed, and prints `Sendlog schema installed - 10 of 10
+policies` when they are. A short paste cuts off the self-check too, so the
+absence of that line in the results is itself the signal.
+
+**`supabase/diagnose.sql`** reports the installed policy count and attempts
+the insert as each member inside a rolled-back subtransaction. Verified to
+pass on a healthy database, to name the fault on a broken one, and to store
+nothing either way.
 
 ## Supabase
 
@@ -149,14 +159,16 @@ Check these before writing new code in the same shape.
   than throwing, and the logging path never touches the network.
 - `GRADES` in `src/lib/types.ts` is the single source of truth for the V-scale.
 - Commit messages explain *why*, including what testing found.
-- Push to `claude/new-session-oke5s6`, open a draft PR, let the user merge.
+- Push to the branch named at the top of this file, open a draft PR, let the
+  user merge.
+- **A schema change is only applied when the user pastes it.** There is no
+  migration runner, so "the fix is committed" and "the fix is live" are
+  different claims. Say which one you mean.
 
 ## Plausible next steps
 
 Nothing here is committed to — ask before building.
 
-- Settle the comment failure with `supabase/diagnose.sql`, then remove the
-  table above.
 - An invite link tapped while the app is *already open* only changes the hash,
   and `joinCodeFromUrl()` is read once on mount, so nothing happens. A fresh
   load is the normal case, so this is unfixed and low priority.
