@@ -25,14 +25,28 @@ interface NavState {
  * The stack is kept whole and a cursor moves through it, mirroring how the
  * browser's own history works — going back and then forward returns to the
  * screen you left rather than dropping it.
+ *
+ * The app can open on a stack rather than a single screen. An invite link
+ * lands straight on the crew screen, and without Home underneath it there is
+ * nothing to go back to: the back control is inert and the Android gesture
+ * leaves the app entirely. Passing [home, crew] puts the rest of the app
+ * where someone arriving by link can reach it.
  */
-export function useNav(initial: Screen = { name: 'home' }) {
-  const [nav, setNav] = useState<NavState>({ stack: [initial], index: 0 })
+export function useNav(initialStack: Screen[] = [{ name: 'home' }]) {
+  const [nav, setNav] = useState<NavState>({
+    stack: initialStack,
+    index: initialStack.length - 1,
+  })
   const navRef = useRef(nav)
   navRef.current = nav
 
   useEffect(() => {
+    // Seed one history entry per screen the app opened on top of the root, or
+    // there is no entry for history.back() to return to.
     history.replaceState({ depth: 0 } satisfies HistoryState, '')
+    for (let depth = 1; depth <= navRef.current.index; depth++) {
+      history.pushState({ depth } satisfies HistoryState, '')
+    }
 
     const onPopState = (event: PopStateEvent) => {
       const depth = (event.state as HistoryState | null)?.depth ?? 0

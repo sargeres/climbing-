@@ -220,12 +220,16 @@ export async function addComment(
   body: string,
 ): Promise<Result<CrewComment>> {
   try {
-    const userId = await ensureSignedIn()
+    // Sign in, but deliberately do not send user_id: the column defaults to
+    // auth.uid(), and the insert policy requires user_id = auth.uid(). Sending
+    // our own copy adds a value that can only ever disagree with the token the
+    // request is actually made with, and disagreement reads as a flat "new row
+    // violates row-level security policy" with nothing to say which half failed.
+    await ensureSignedIn()
     const { data, error } = await supabase()
       .from('comments')
       .insert({
         post_id: postId,
-        user_id: userId,
         author_name: identity.displayName,
         body: body.trim(),
       })
