@@ -10,7 +10,14 @@ interface Persisted {
   /** Seconds banked in each phase since the last attempt was logged. */
   restAccum: number
   climbAccum: number
+  /** Rest length after which to sound the alarm; 0 disables it. */
+  restTargetSec: number
+  /** Set once the alarm has gone off for the current rest, so it fires once. */
+  alarmed: boolean
 }
+
+/** Offered as one-tap choices; matches how boulder rests are usually called. */
+export const REST_TARGETS = [0, 60, 120, 180, 300] as const
 
 const key = (sessionId: string) => `sendlog.timer.${sessionId}`
 
@@ -19,6 +26,8 @@ const fresh = (): Persisted => ({
   startedAt: null,
   restAccum: 0,
   climbAccum: 0,
+  restTargetSec: 0,
+  alarmed: false,
 })
 
 function read(sessionId: string): Persisted {
@@ -31,6 +40,8 @@ function read(sessionId: string): Persisted {
       startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
       restAccum: Number.isFinite(parsed.restAccum) ? Number(parsed.restAccum) : 0,
       climbAccum: Number.isFinite(parsed.climbAccum) ? Number(parsed.climbAccum) : 0,
+      restTargetSec: Number.isFinite(parsed.restTargetSec) ? Number(parsed.restTargetSec) : 0,
+      alarmed: parsed.alarmed === true,
     }
   } catch {
     return fresh()
@@ -128,17 +139,38 @@ export function useSessionTimer(sessionId: string | null) {
 
   /** Zero both clocks and start resting again — used after logging an attempt. */
   const startNextRest = useCallback(() => {
-    setState({ phase: 'rest', startedAt: Date.now(), restAccum: 0, climbAccum: 0 })
+    setState((s) => ({
+      phase: 'rest',
+      startedAt: Date.now(),
+      restAccum: 0,
+      climbAccum: 0,
+      restTargetSec: s.restTargetSec,
+      alarmed: false,
+    }))
+  }, [])
+
+  const setRestTarget = useCallback((seconds: number) => {
+    // Changing the target re-arms the alarm, so raising it mid-rest can ring.
+    setState((s) => ({ ...s, restTargetSec: seconds, alarmed: false }))
+  }, [])
+
+  const markAlarmed = useCallback(() => {
+    setState((s) => (s.alarmed ? s : { ...s, alarmed: true }))
   }, [])
 
   /** Zero only the clock currently showing, for a mistimed go or rest. */
   const resetPhase = useCallback(() => {
     setState((s) =>
       s.phase === 'rest'
-        ? { ...s, restAccum: 0, startedAt: s.startedAt === null ? null : Date.now() }
+        ? { ...s, restAccum: 0, alarmed: false, startedAt: s.startedAt === null ? null : Date.now() }
         : { ...s, climbAccum: 0, startedAt: s.startedAt === null ? null : Date.now() },
     )
   }, [])
+
+  const restTargetSec = state.restTargetSec
+  // Reached only while actually resting, so pausing or climbing can't trip it.
+  const restTargetReached =
+    restTargetSec > 0 && state.phase === 'rest' && restSec >= restTargetSec
 
   return {
     phase: state.phase,
@@ -147,10 +179,16 @@ export function useSessionTimer(sessionId: string | null) {
     /** Whatever the visible clock is showing. */
     displaySec: state.phase === 'rest' ? restSec : climbSec,
     running,
+    restTargetSec,
+    restTargetReached,
+    /** True once the alarm has sounded for this rest. */
+    alarmed: state.alarmed,
     start,
     toggle,
     setPhase,
     startNextRest,
     resetPhase,
+    setRestTarget,
+    markAlarmed,
   }
 }

@@ -4,6 +4,8 @@ import { ClimbRow, EmptyState, GradeHistogram, Stat, TopBar } from '../component
 import { LogClimbSheet } from '../components/LogClimbSheet'
 import { formatDateLong, formatDuration, formatDurationShort, formatTime } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
+import { buildSnapshot } from '../lib/snapshot'
+import { SessionSnapshot } from '../components/SessionSnapshot'
 import type { Climb } from '../lib/types'
 
 export function SessionDetailScreen({
@@ -39,6 +41,10 @@ export function SessionDetailScreen({
   const summary = summarise(climbs)
   const ratio = workRestRatio(summary)
   const duration = ((session.endedAt ?? Date.now()) - session.startedAt) / 1000
+  const priorClimbs = store
+    .climbsForClient(session.clientId)
+    .filter((c) => c.sessionId !== sessionId)
+  const snapshot = buildSnapshot(climbs, priorClimbs, duration, client?.name)
   const canReopen = session.endedAt !== null && store.activeSession === null
 
   return (
@@ -50,6 +56,8 @@ export function SessionDetailScreen({
       />
 
       <main className="content">
+        <SessionSnapshot snapshot={snapshot} title="How it went" />
+
         <div className="card">
           <div className="spread" style={{ marginBottom: 14 }}>
             <div>

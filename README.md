@@ -73,6 +73,27 @@ bouldering gym. Indoors the position comes from wifi rather than satellites,
 which is accurate enough to tell one venue from another but not two gyms in one
 building. Declining the location permission costs nothing but the pre-fill.
 
+**A session snapshot** sits at the top of every session, live while you log and
+again when you finish. It turns the numbers into something you can picture:
+completion percentages are converted into metres of wall actually covered
+(each problem counted at 4.5m, credited in proportion to how far up they got),
+and that distance is compared to something recognisable — 66% of Big Ben for a
+good session, 83% of Mont Blanc for a season, past Everest for a serious year.
+A one-line headline picks out whatever genuinely stood out: a grade sent for
+the first time, a clean sweep, a day where the effort never dropped below 8.
+
+The landmark is chosen to land near two thirds rather than to be as impressive
+as possible — "10% of the Statue of Liberty" reads as a rounding error, "63% of
+a lead wall" reads as a morning's work.
+
+**A rest alarm** can be set to 1, 2, 3 or 5 minutes. When the rest is up the
+card glows, the phone buzzes and three rising pips sound. Audio is unlocked on
+your first touch of the app, because a browser won't let a page make noise
+until you've interacted with it — and the alarm fires long after the last tap.
+
+**Logging a go is celebrated** with confetti and an *Allez!*, with the line
+underneath following how the attempt actually went.
+
 **After the session**, get a breakdown: attempts, sends, hardest send, average
 completion, average effort, total and average rest, time on the wall, work:rest
 ratio, and an attempts-by-grade histogram with sends shown as the solid portion
@@ -130,6 +151,8 @@ src/
     useWakeLock.ts    Keeps the screen on during a session
     useNav.ts         Screen stack wired to the History API
     stats.ts          Session and client summaries, work:rest ratio
+    snapshot.ts       Metres climbed, landmark comparisons, the headline
+    sound.ts          Rest-alarm tone and haptics, with the audio unlock
     colors.ts         Grade, completion and effort colour scales
   components/        Shared UI and the attempt-logging sheet
   screens/           One file per screen
