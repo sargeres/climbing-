@@ -1,9 +1,19 @@
 -- ============================================================================
 -- Sendlog crew schema
 --
--- Run this ONCE in the Supabase SQL Editor (Dashboard -> SQL Editor -> New
--- query -> paste -> Run). It is written to be re-runnable: running it a second
--- time will not destroy anything.
+-- Run this in the Supabase SQL Editor (Dashboard -> SQL Editor -> New query ->
+-- paste -> Run). It is written to be re-runnable: running it a second time
+-- will not destroy anything, so re-running it is always a safe repair.
+--
+-- PASTE THE WHOLE FILE. The last statement prints
+--
+--     Sendlog schema installed - 10 of 10 policies
+--
+-- and a short paste stops before it. This is not hypothetical: a paste that
+-- ended after the posts policies once left the comments table with RLS on and
+-- no policies at all, which denies every read and write on it. Nothing
+-- complained, because everything that did run, ran fine. If you do not see
+-- that line in the results, you did not paste all of this file.
 --
 -- SECURITY MODEL
 -- The app ships a publishable key, which is public by design, so every rule
@@ -234,6 +244,30 @@ create policy comments_insert on public.comments
 drop policy if exists comments_delete_own on public.comments;
 create policy comments_delete_own on public.comments
   for delete using (user_id = auth.uid());
+
+
+-- ---------------------------------------------------------------- self-check
+-- A policy that was never created looks exactly like one that was, from the
+-- app's side: the table simply refuses everything with a message naming no
+-- cause. Count them here instead, while the editor is still open.
+do $$
+declare
+  n int;
+begin
+  select count(*) into n from pg_policies
+   where schemaname = 'public'
+     and tablename in ('crews', 'crew_members', 'posts', 'comments');
+  if n <> 10 then
+    raise exception
+      'Sendlog schema incomplete: % of 10 policies. Re-copy the whole file and run it again.', n;
+  end if;
+end $$;
+
+select 'Sendlog schema installed - ' ||
+       (select count(*) from pg_policies
+         where schemaname = 'public'
+           and tablename in ('crews', 'crew_members', 'posts', 'comments'))::text ||
+       ' of 10 policies' as result;
 
 
 -- ============================================================================

@@ -7,7 +7,7 @@ app does; this file is for whoever picks up the work next.
 - **Repo** `sargeres/climbing-` (public)
 - **Live** https://sargeres.github.io/climbing-/ — deploys on every push to `main`
 - **Stack** React 19 + Vite + TypeScript, PWA, IndexedDB. Supabase for the crew feature only.
-- **Branch** work goes on `claude/new-session-oke5s6`
+- **Branch** work goes on `claude/brave-euler-y5mva7`
 
 ## Where things stand
 
@@ -15,13 +15,53 @@ Live on `main`: client logging, the two-phase stopwatch (rest + time on the
 wall), GPS venue recognition, video links, the session snapshot, the rest
 alarm, the Allez celebration, and crews.
 
-**Open: PR #4** — ready for review, CI green, not merged. Two fixes:
-the `gen_random_bytes` schema bug, and moving the crew share control onto the
-attempt row where it can be found.
+PR #4 is merged (the `gen_random_bytes` fix and the share control on the
+attempt row).
 
-**Never exercised end to end:** a real share against the live Supabase project.
-The sandbox blocks `supabase.co`, so every crew test has run against a local
-stand-in. The user's next tap is the real test.
+**Crews have now run against the live project.** Creating a crew, joining by
+invite link, sharing an attempt and reading the feed all work on real Supabase.
+Commenting failed with "new row violates row-level security policy for table
+comments" until the cause was found and `schema.sql` was re-pasted; the project
+now reports 10 of 10 policies and every member can comment. **Crews are
+verified end to end against the live project**, commenting included.
+
+## The comment RLS failure — fixed
+
+**Cause: a truncated paste of `schema.sql`.** The live database had 7 of 10
+policies. `crews`, `crew_members` and `posts` were complete; `comments` had
+**none at all**, and RLS on a table with no policies denies everything. The
+three comments policies are the last three statements in the file, so a paste
+that stopped after `posts_delete_own` installed cleanly and said nothing.
+
+Reproduced exactly: cutting `schema.sql` at that line and running it produces
+7 policies, no complaint, and a `diagnose.sql` report identical to the one the
+live database gave. Re-running the whole file repairs it and both members can
+comment again.
+
+Note it was never a policy *bug* — the policy is correct, and a joined member
+can comment on another member's post when the policy is actually installed.
+Three causes produce that byte-identical sentence; the other two (a client
+`user_id` disagreeing with `auth.uid()`, a commenter who is not a member) were
+ruled out before this one was confirmed.
+
+**`schema.sql` now ends with a self-check** that raises if fewer than 10
+policies are installed, and prints `Sendlog schema installed - 10 of 10
+policies` when they are. A short paste cuts off the self-check too, so the
+absence of that line in the results is itself the signal.
+
+**`supabase/diagnose.sql`** reports the installed policy count and attempts
+the insert as each member inside a rolled-back subtransaction. Verified to
+pass on a healthy database, to name the fault on a broken one, and to store
+nothing either way.
+
+It tests **per crew**, against a post in that member's own crew. Its first
+version picked the newest post globally and looped over every `crew_members`
+row, so on the live database — which has more than one crew — it reported a
+member of the *other* crew as `CANNOT comment` on a database that was in fact
+completely healthy. A member cannot comment on another crew's post; that
+refusal is the rules working. Reproduced and fixed. **A diagnostic that can
+cry wolf is worse than none**, because the next real fault is read as more
+noise.
 
 ## Supabase
 
@@ -100,8 +140,26 @@ Check these before writing new code in the same shape.
    edit sheet and the person who requested the feature reported it missing. If
    an action belongs to a thing, put it on that thing.
 
+7. **Never send a column the policy compares against `auth.uid()`.** Let the
+   column default supply it. A client-supplied copy can only ever agree or
+   disagree with the token the request is made with, and disagreement surfaces
+   as a flat RLS refusal naming neither half.
+
+8. **A screen the app opens on has nothing beneath it.** `useNav` starts at
+   index 0 and `back()` is a no-op there, so opening straight onto the crew
+   screen from an invite link left the back control inert *and* let Android's
+   back gesture close the app. Seed the stack as `[home, crew]` instead. Both
+   halves are covered by the Playwright checks; the gesture half needs a
+   "still inside the app" assertion, because a page that has left the app also
+   fails to look like the crew screen.
+
 ## Conventions
 
+- **A negative test, or it proves nothing.** This applies to diagnostics as
+  much as to fixes: check that the tool still reports a fault when there is
+  one, and reports none when the database is healthy. Revert the fix, confirm
+  the check fails, restore it. The nav fix above passed against the *broken* build on
+  four of six assertions until the negative run exposed which two mattered.
 - **Drive the real app before claiming it works.** Every feature so far has been
   verified in a Pixel-sized Chromium against the production build, and roughly
   half the bugs above were found that way rather than by reading.
@@ -113,13 +171,21 @@ Check these before writing new code in the same shape.
   than throwing, and the logging path never touches the network.
 - `GRADES` in `src/lib/types.ts` is the single source of truth for the V-scale.
 - Commit messages explain *why*, including what testing found.
-- Push to `claude/new-session-oke5s6`, open a draft PR, let the user merge.
+- Push to the branch named at the top of this file, open a draft PR, let the
+  user merge.
+- **A schema change is only applied when the user pastes it.** There is no
+  migration runner, so "the fix is committed" and "the fix is live" are
+  different claims. Say which one you mean.
 
 ## Plausible next steps
 
 Nothing here is committed to — ask before building.
 
-- Prove the crew works against the live project, then remove that caveat.
+- An invite link tapped while the app is *already open* only changes the hash,
+  and `joinCodeFromUrl()` is read once on mount, so nothing happens. A fresh
+  load is the normal case, so this is unfixed and low priority.
+- Re-join automatically when the stored crew identity outlives its anonymous
+  session; today that combination shows an RLS refusal instead.
 - Realtime or polling on the crew feed; it currently refreshes on open.
 - Code-split the Supabase client (~65 KB gzipped) so the crew screen loads it.
 - Editing or deleting your own crew posts from the board.

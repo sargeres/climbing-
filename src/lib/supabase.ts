@@ -71,6 +71,12 @@ export function describeError(error: unknown): string {
   if (/relation .* does not exist|schema cache/i.test(raw)) {
     return 'The database tables are missing. Run supabase/schema.sql in the Supabase SQL editor.'
   }
+  // Postgres gives the same sentence whichever half of the policy failed — a
+  // missing policy and a lost membership are indistinguishable from here — so
+  // say what to try rather than repeating a message with no action in it.
+  if (/violates row-level security|42501/i.test(raw) || e.code === '42501') {
+    return 'The database refused that. Re-run supabase/schema.sql in the Supabase SQL editor (it is safe to run twice); if it still fails, rejoin the crew with the invite link.'
+  }
   if (raw) return e.hint ? `${raw} (${e.hint})` : raw
   return 'Something went wrong talking to the crew server.'
 }
