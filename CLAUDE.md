@@ -21,10 +21,11 @@ attempt row).
 **Crews have now run against the live project.** Creating a crew, joining by
 invite link, sharing an attempt and reading the feed all work on real Supabase.
 Commenting failed with "new row violates row-level security policy for table
-comments" until the cause was found — see below. It needs `schema.sql` re-run
-against the project before it works.
+comments" until the cause was found and `schema.sql` was re-pasted; the project
+now reports 10 of 10 policies and every member can comment. **Crews are
+verified end to end against the live project**, commenting included.
 
-## The comment RLS failure — found
+## The comment RLS failure — fixed
 
 **Cause: a truncated paste of `schema.sql`.** The live database had 7 of 10
 policies. `crews`, `crew_members` and `posts` were complete; `comments` had
@@ -52,6 +53,15 @@ absence of that line in the results is itself the signal.
 the insert as each member inside a rolled-back subtransaction. Verified to
 pass on a healthy database, to name the fault on a broken one, and to store
 nothing either way.
+
+It tests **per crew**, against a post in that member's own crew. Its first
+version picked the newest post globally and looped over every `crew_members`
+row, so on the live database — which has more than one crew — it reported a
+member of the *other* crew as `CANNOT comment` on a database that was in fact
+completely healthy. A member cannot comment on another crew's post; that
+refusal is the rules working. Reproduced and fixed. **A diagnostic that can
+cry wolf is worse than none**, because the next real fault is read as more
+noise.
 
 ## Supabase
 
@@ -145,8 +155,10 @@ Check these before writing new code in the same shape.
 
 ## Conventions
 
-- **A negative test, or it proves nothing.** Revert the fix, confirm the check
-  fails, restore it. The nav fix above passed against the *broken* build on
+- **A negative test, or it proves nothing.** This applies to diagnostics as
+  much as to fixes: check that the tool still reports a fault when there is
+  one, and reports none when the database is healthy. Revert the fix, confirm
+  the check fails, restore it. The nav fix above passed against the *broken* build on
   four of six assertions until the negative run exposed which two mattered.
 - **Drive the real app before claiming it works.** Every feature so far has been
   verified in a Pixel-sized Chromium against the production build, and roughly

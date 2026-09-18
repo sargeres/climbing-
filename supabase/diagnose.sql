@@ -13,6 +13,10 @@
 --
 -- Postgres reports the same sentence whichever half of a policy failed, so the
 -- app cannot tell a missing policy from a lost membership. This can.
+--
+-- Members are tested per crew, against a post in their own crew. A member
+-- cannot comment on another crew's post, and that refusal is the rules working
+-- rather than a fault, so it is never reported as one.
 -- ============================================================================
 
 create or replace function pg_temp.sendlog_diagnose()
@@ -20,6 +24,7 @@ returns table (check_name text, result text)
 language plpgsql
 as $$
 declare
+  c        record;
   m        record;
   v_post   uuid;
   v_msg    text;
@@ -61,34 +66,47 @@ begin
                     'none — correct');
 
   -- -------------------------------------------------------------- membership
-  select id into v_post from public.posts order by created_at desc limit 1;
-  if v_post is null then
-    return query select 'shared attempts', 'none yet — share one, then re-run this';
-    return;
-  end if;
-
-  for m in select cm.display_name, cm.user_id from public.crew_members cm
-           order by cm.joined_at
+  -- Per crew, not globally. A member can only comment on posts in their OWN
+  -- crew, so testing everyone against one crew's post reports every member of
+  -- every other crew as a failure — correct RLS behaviour, read as a fault.
+  for c in select cr.id, cr.name from public.crews cr order by cr.created_at
   loop
-    begin
-      perform set_config('request.jwt.claim.sub', m.user_id::text, true);
-      execute 'set local role authenticated';
+    select p.id into v_post
+      from public.posts p
+     where p.crew_id = c.id
+     order by p.created_at desc
+     limit 1;
 
+    if v_post is null then
+      return query select 'crew ' || c.name, 'no shared attempts yet — share one, then re-run';
+      continue;
+    end if;
+
+    for m in select cm.display_name, cm.user_id
+               from public.crew_members cm
+              where cm.crew_id = c.id
+              order by cm.joined_at
+    loop
       begin
-        insert into public.comments (post_id, author_name, body)
-        values (v_post, m.display_name, 'diagnostic — never stored');
-        -- Reaching here means the policy allowed it. Undo it regardless.
-        raise exception 'sendlog_ok';
-      exception
-        when others then
-          if sqlerrm = 'sendlog_ok' then v_msg := 'CAN comment';
-          else v_msg := 'CANNOT comment — ' || sqlerrm;
-          end if;
-      end;
+        perform set_config('request.jwt.claim.sub', m.user_id::text, true);
+        execute 'set local role authenticated';
 
-      execute 'reset role';
-      return query select 'member: ' || m.display_name, v_msg;
-    end;
+        begin
+          insert into public.comments (post_id, author_name, body)
+          values (v_post, m.display_name, 'diagnostic — never stored');
+          -- Reaching here means the policy allowed it. Undo it regardless.
+          raise exception 'sendlog_ok';
+        exception
+          when others then
+            if sqlerrm = 'sendlog_ok' then v_msg := 'CAN comment';
+            else v_msg := 'CANNOT comment — ' || sqlerrm;
+            end if;
+        end;
+
+        execute 'reset role';
+        return query select c.name || ' / ' || m.display_name, v_msg;
+      end;
+    end loop;
   end loop;
 end;
 $$;
