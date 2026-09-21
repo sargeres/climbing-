@@ -9,6 +9,7 @@ import { ClientScreen } from './screens/ClientScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { CrewScreen } from './screens/CrewScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
+import { TrophyScreen } from './screens/TrophyScreen'
 import { joinCodeFromUrl } from './lib/crew'
 
 function Router() {
@@ -81,6 +82,9 @@ function Router() {
 
     case 'profile':
       return <ProfileScreen key={screen.clientId} clientId={screen.clientId} onBack={back} />
+
+    case 'trophies':
+      return <TrophyScreen key={screen.clientId} clientId={screen.clientId} onBack={back} />
   }
 }
 

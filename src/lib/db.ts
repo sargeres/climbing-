@@ -139,6 +139,9 @@ export function migrate(raw: unknown): AppData {
           : [],
         lastAnalysedSessionId:
           typeof c.lastAnalysedSessionId === 'string' ? c.lastAnalysedSessionId : null,
+        seenTrophies: Array.isArray(c.seenTrophies)
+          ? c.seenTrophies.filter((t): t is string => typeof t === 'string')
+          : [],
       }
     }),
     sessions: list(input.sessions, (s) => ({

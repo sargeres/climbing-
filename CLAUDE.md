@@ -50,10 +50,19 @@ rules hold it together and breaking any one of them breaks the feature:
    the title actually fires; it does not fire in ordinary testing because five
    creatures out of 151 always leaves a close match.
 
-One reading per session, locked by `lastAnalysedSessionId`. Cards for both a
-Sendex entry and a whole session are drawn in `src/lib/storycard.ts`; the
+One reading per session, locked by `lastAnalysedSessionId`. Cards for a Sendex
+entry, a whole session and a trophy are drawn in `src/lib/storycard.ts`; the
 session card leads with the grade chart because that chart means nothing to
 non-climbers, which is what makes it read as a game screen.
+
+**Trophies are derived, never recorded** (`src/lib/trophies.ts`). The shelf is
+recomputed from the log every time it opens. Watching for a personal best as
+it happens loses trophies — the moment is missed while the app is
+backgrounded, a later edit invalidates one already banked, a deleted session
+leaves one pointing at nothing, and nobody with an existing log gets any. The
+only thing stored is `seenTrophies`, so a new one can be badged. Deleting the
+session that earned a trophy removes the trophy, and that is covered by a
+test.
 
 **Crews have now run against the live project.** Creating a crew, joining by
 invite link, sharing an attempt and reading the feed all work on real Supabase.

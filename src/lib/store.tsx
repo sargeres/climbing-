@@ -102,6 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       archivedAt: null,
       dex: [],
       lastAnalysedSessionId: null,
+      seenTrophies: [],
     }
     setData((d) => ({ ...d, clients: [...d.clients, client] }))
     return client

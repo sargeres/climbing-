@@ -27,6 +27,12 @@ export interface Client {
    * re-rolling until you like the answer would make the whole thing worthless.
    */
   lastAnalysedSessionId: string | null
+  /**
+   * Trophy ids already shown. The trophies themselves are recomputed from the
+   * log every time, so this is the only part that has to persist — without it
+   * there is no way to tell a new trophy from one earned last spring.
+   */
+  seenTrophies: string[]
 }
 
 /** One creature captured into the Sendex. */
@@ -97,9 +103,12 @@ export interface Climb {
  *       scrubs the leaked `[form:…]` marker from any notes already holding one.
  * 4 → 5 replaced that single remembered form with the full Sendex collection
  *       and the once-per-session lock.
+ * 5 → 6 added the seen-trophy list. Trophies are derived from the log, so
+ *       nothing else needs storing and an existing log gets its whole shelf
+ *       on first open.
  * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 5
+export const DATA_VERSION = 6
 
 export interface AppData {
   version: number

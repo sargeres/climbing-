@@ -192,6 +192,117 @@ export function drawProfileCard(canvas: HTMLCanvasElement, input: CardInput): vo
   quantize(ctx)
 }
 
+
+export interface TrophyCardInput {
+  who: string
+  trophy: { name: string; detail: string; earnedAt: number; venue: string | null }
+  total: number
+}
+
+/**
+ * One trophy, alone on the card.
+ *
+ * Deliberately the emptiest of the three: a trophy is a single fact and the
+ * card should feel like a plaque, not a dashboard. Everything competing with
+ * the name makes it read as less of an occasion.
+ */
+export function drawTrophyCard(canvas: HTMLCanvasElement, input: TrophyCardInput): void {
+  const { who, trophy, total } = input
+  canvas.width = STORY_W
+  canvas.height = STORY_H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.imageSmoothingEnabled = false
+  ctx.fillStyle = TONES.screen
+  ctx.fillRect(0, 0, STORY_W, STORY_H)
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(0, 0, STORY_W, 24)
+  ctx.fillRect(0, STORY_H - 24, STORY_W, 24)
+  ctx.fillRect(0, 0, 24, STORY_H)
+  ctx.fillRect(STORY_W - 24, 0, 24, STORY_H)
+
+  const M = 96
+  const inner = STORY_W - M * 2
+  ctx.textBaseline = 'top'
+
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, 150, inner, 8)
+  ctx.font = `26px ${PIXEL}`
+  ctx.fillText('TROPHY', M, 190)
+  const count = `${total} EARNED`
+  ctx.fillText(count, STORY_W - M - ctx.measureText(count).width, 190)
+
+  // A cup, drawn as blocks rather than as a path — a smooth icon in the middle
+  // of a two-bit card is the one thing that would give the costume away.
+  const cx = STORY_W / 2
+  // Pushed down from the header so the block sits near the optical centre of
+  // the frame rather than hanging off the top of it.
+  const top = 560
+  const U = 22
+  const px = (gx: number, gy: number, w = 1, h = 1) =>
+    ctx.fillRect(cx + gx * U, top + gy * U, w * U, h * U)
+  ctx.fillStyle = TONES.ink
+  px(-5, 0, 10, 1)
+  px(-5, 1, 1, 4)
+  px(4, 1, 1, 4)
+  px(-7, 1, 2, 1)
+  px(5, 1, 2, 1)
+  px(-7, 2, 1, 2)
+  px(6, 2, 1, 2)
+  px(-7, 4, 2, 1)
+  px(5, 4, 2, 1)
+  px(-4, 5, 8, 1)
+  px(-3, 6, 6, 1)
+  px(-1, 7, 2, 2)
+  px(-3, 9, 6, 1)
+  px(-5, 10, 10, 1)
+
+  let y = top + 13 * U
+  ctx.font = `54px ${PIXEL}`
+  ctx.fillStyle = TONES.ink
+  for (const l of wrap(ctx, trophy.name, inner)) {
+    ctx.fillText(l, cx - ctx.measureText(l).width / 2, y)
+    y += 76
+  }
+
+  y += 24
+  ctx.font = '34px ui-sans-serif, system-ui, sans-serif'
+  ctx.fillStyle = TONES.dark
+  for (const l of wrap(ctx, trophy.detail, inner)) {
+    ctx.fillText(l, cx - ctx.measureText(l).width / 2, y)
+    y += 48
+  }
+
+  y += 40
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M + inner / 4, y, inner / 2, 5)
+  y += 34
+  ctx.font = `24px ${PIXEL}`
+  ctx.fillStyle = TONES.dark
+  const when = new Date(trophy.earnedAt)
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    .toUpperCase()
+  const line = trophy.venue ? `${when} · ${trophy.venue.toUpperCase()}` : when
+  for (const l of wrap(ctx, line, inner)) {
+    ctx.fillText(l, cx - ctx.measureText(l).width / 2, y)
+    y += 38
+  }
+
+  // The climber's name closes the block instead of floating at the bottom of
+  // the card, which left a dead half-frame between the two.
+  y += 30
+  ctx.font = `28px ${PIXEL}`
+  ctx.fillStyle = TONES.ink
+  const name = who.split(' ')[0].toUpperCase()
+  ctx.fillText(name, cx - ctx.measureText(name).width / 2, y)
+
+  ctx.font = `22px ${PIXEL}`
+  ctx.fillText('SENDLOG', M, STORY_H - 150)
+
+  quantize(ctx)
+}
+
 export interface HistoCardInput {
   who: string
   venue: string

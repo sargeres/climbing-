@@ -1395,3 +1395,64 @@ input[type='range']::-moz-range-thumb {
   font-size: 9px;
   color: var(--ink-2);
 }
+
+/* ----------------------------------------------------------- trophies -- */
+.trophy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trophy-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.trophy-row:active {
+  background: var(--surface-2);
+}
+
+.trophy-cup {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--ink);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.trophy-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.trophy-new {
+  font-family: var(--pixel);
+  font-size: 8px;
+  padding: 3px 5px;
+  background: var(--ink);
+  color: var(--screen-hi);
+  flex: none;
+}
+
+.trophy-row .tiny {
+  display: block;
+}
+
+.trophy-row .tiny + .tiny {
+  margin-top: 4px;
+}

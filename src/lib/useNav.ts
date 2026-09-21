@@ -9,6 +9,7 @@ export type Screen =
   | { name: 'settings' }
   | { name: 'crew' }
   | { name: 'profile'; clientId: string }
+  | { name: 'trophies'; clientId: string }
 
 interface HistoryState {
   depth: number
