@@ -6,7 +6,8 @@ import { clearSessionTimer, useSessionTimer, REST_TARGETS } from '../lib/useSess
 import { SessionSnapshot } from '../components/SessionSnapshot'
 import { Celebration } from '../components/Celebration'
 import { buildSnapshot } from '../lib/snapshot'
-import { buzz, listenForFirstGesture, playRestAlarm, primeAudio } from '../lib/sound'
+import { buzz, listenForFirstGesture, playRestAlarm, playSendChime, primeAudio } from '../lib/sound'
+import { primeVoices } from '../lib/shout'
 import { useWakeLock } from '../lib/useWakeLock'
 import { formatDuration, formatDurationShort } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
@@ -33,6 +34,8 @@ export function ActiveSessionScreen({
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [endArmed, setEndArmed] = useState(false)
   const [celebrate, setCelebrate] = useState<number | null>(null)
+  // Remembered so two attempts in a row do not land on the same language.
+  const lastLang = useRef<string | null>(null)
   const [, tick] = useState(0)
 
   const timer = useSessionTimer(sessionId)
@@ -48,6 +51,10 @@ export function ActiveSessionScreen({
   // Audio needs a gesture before it will make a sound, and the rest alarm
   // fires long after the last one — so claim the very first touch.
   useEffect(() => listenForFirstGesture(), [])
+
+  // The voice list loads asynchronously and the first read after page load is
+  // reliably empty on Chrome, so warm it now rather than on the first send.
+  useEffect(() => primeVoices(), [])
 
   // The destructive button in the confirm sheet stays inert briefly, so the
   // second half of an accidental double-tap can't land on it.
@@ -296,7 +303,15 @@ export function ActiveSessionScreen({
       </div>
 
       {celebrate !== null && (
-        <Celebration completion={celebrate} onDone={() => setCelebrate(null)} />
+        <Celebration
+          completion={celebrate}
+          lastLang={lastLang.current}
+          onShout={(lang) => {
+            lastLang.current = lang
+          }}
+          onSilent={playSendChime}
+          onDone={() => setCelebrate(null)}
+        />
       )}
 
       {logging && (

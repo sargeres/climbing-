@@ -7,7 +7,8 @@ app does; this file is for whoever picks up the work next.
 - **Repo** `sargeres/climbing-` (public)
 - **Live** https://sargeres.github.io/climbing-/ — deploys on every push to `main`
 - **Stack** React 19 + Vite + TypeScript, PWA, IndexedDB. Supabase for the crew feature only.
-- **Branch** work goes on `claude/brave-euler-y5mva7`
+- **Branch** work goes on `claude/brave-euler-y5mva7` (a parallel session used
+  `claude/new-session-oke5s6`; check which branch your PR is on before pushing)
 
 ## Where things stand
 
@@ -17,6 +18,19 @@ alarm, the Allez celebration, and crews.
 
 PR #4 is merged (the `gen_random_bytes` fix and the share control on the
 attempt row).
+
+**The app is themed as a two-bit handheld** — four greys, square corners, a
+bundled pixel face for chrome only. Colour used to carry the grade ladder and
+the completion ramp; both now ride **tone plus dither pattern** instead
+(`src/lib/colors.ts`), which as a side effect makes the charts readable for a
+red-green colourblind coach. If you add a scale, encode it the same way —
+nothing in here may depend on hue.
+
+Also live: per-session delete on the row behind two confirmations, a
+multilingual shout on every logged attempt (`src/lib/shout.ts`), the field
+notes screen with its creature verdict (`src/lib/profile.ts`,
+`src/screens/ProfileScreen.tsx`), and an Instagram-Stories card drawn on a
+canvas (`src/lib/storycard.ts`).
 
 **Crews have now run against the live project.** Creating a crew, joining by
 invite link, sharing an attempt and reading the feed all work on real Supabase.
@@ -145,7 +159,19 @@ Check these before writing new code in the same shape.
    disagree with the token the request is made with, and disagreement surfaces
    as a flat RLS refusal naming neither half.
 
-8. **A screen the app opens on has nothing beneath it.** `useNav` starts at
+8. **A test that cannot fail proves nothing — and a build error hides that.**
+   Reverting a fix to check the test catches it produced a tsc error, so the
+   preview server kept serving the *previous* bundle and the suite reported
+   ALL PASSED against code that no longer existed. Always confirm the negative
+   build actually compiled before believing its result.
+
+9. **Assert on the thing you mean, not the thing next to it.** The shout test
+   checked which *voice* spoke. A Cantonese word falling back to a Mandarin
+   voice reports `zh-CN`, so the assertion passed against a build with the
+   voice filter torn out. Reading the `lang` on the rendered word — the
+   language actually *chosen* — catches it.
+
+10. **A screen the app opens on has nothing beneath it.** `useNav` starts at
    index 0 and `back()` is a no-op there, so opening straight onto the crew
    screen from an invite link left the back control inert *and* let Android's
    back gesture close the app. Seed the stack as `[home, crew]` instead. Both

@@ -8,6 +8,7 @@ import { SessionDetailScreen } from './screens/SessionDetailScreen'
 import { ClientScreen } from './screens/ClientScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { CrewScreen } from './screens/CrewScreen'
+import { ProfileScreen } from './screens/ProfileScreen'
 import { joinCodeFromUrl } from './lib/crew'
 
 function Router() {
@@ -77,6 +78,9 @@ function Router() {
 
     case 'crew':
       return <CrewScreen onBack={back} presetCode={inviteCode} />
+
+    case 'profile':
+      return <ProfileScreen key={screen.clientId} clientId={screen.clientId} onBack={back} />
   }
 }
 

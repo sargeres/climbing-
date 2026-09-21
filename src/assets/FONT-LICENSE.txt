@@ -1,0 +1,6 @@
+Press Start 2P by CodeMan38 — SIL Open Font License 1.1.
+https://fonts.google.com/specimen/Press+Start+2P
+Bundled rather than loaded from a CDN so the app still looks like itself
+offline, which is the normal case at a climbing wall.
+Only the Latin subset is included; the shout words in other scripts fall
+through to the device font by design.

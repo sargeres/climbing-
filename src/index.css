@@ -1,29 +1,76 @@
 /* ---------------------------------------------------------------- tokens -- */
+
+/*
+ * Two-bit handheld palette: four tones and nothing else.
+ *
+ * Every colour in the app resolves to one of these, or to a dither of two of
+ * them. That is the constraint the hardware actually had, and keeping to it is
+ * what makes the thing read as a handheld rather than as a dark app with the
+ * saturation turned down.
+ *
+ * Colour used to carry real information here — the grade ladder ran green to
+ * purple, completion ran red to green. None of that survives four greys, so it
+ * moves to tone plus dither pattern instead; see `.grade-pill` and
+ * `--dither-*` below. Nothing is encoded by hue alone any more, which as a
+ * side effect is the first version of this app that works for a red-green
+ * colourblind coach.
+ */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/press-start-2p.woff2') format('woff2');
+  /* Latin only. The shout words in other scripts deliberately fall through to
+     the device font — there is no pixel face that covers 漢字 and 한글. */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+2122, U+2191,
+    U+2193, U+2212, U+2215;
+}
+
 :root {
-  --bg: #0b0d12;
-  --surface: #141821;
-  --surface-2: #1b2130;
-  --surface-3: #232b3d;
-  --border: #262e3f;
-  --text: #e8ecf5;
-  --text-dim: #9aa6bd;
-  --text-faint: #6b768c;
+  --ink: #0f0f0f;
+  --ink-2: #4a4a4a;
+  --ink-3: #8b8b8b;
+  --screen: #c8ccc0;
+  --screen-hi: #e6e9df;
 
-  --brand: #ff6b35;
-  --brand-dim: #7a3319;
-  --send: #34d399;
-  --climb: #34d399;
-  --climb-dim: #14503c;
-  --danger: #f87171;
+  --bg: var(--screen);
+  --surface: var(--screen-hi);
+  --surface-2: #cdd1c5;
+  --surface-3: #b2b6aa;
+  --border: var(--ink);
+  --text: var(--ink);
+  --text-dim: var(--ink-2);
+  --text-faint: #6e6e6e;
 
-  --radius: 14px;
-  --radius-lg: 20px;
+  /* The accents all collapse to ink. What used to be hue is now weight,
+     inversion and pattern. */
+  --brand: var(--ink);
+  --brand-dim: var(--ink-3);
+  --send: var(--ink);
+  --climb: var(--ink);
+  --climb-dim: var(--ink-3);
+  --danger: var(--ink);
+
+  /* A screen with square pixels has no rounded corners. */
+  --radius: 0px;
+  --radius-lg: 0px;
   --tap: 48px;
+
+  --pixel: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+
+  --dither-50: repeating-conic-gradient(var(--ink) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+  --dither-25: repeating-conic-gradient(var(--ink) 0% 25%, transparent 0% 50%) 0 0 / 6px 6px;
+  --dither-hatch: repeating-linear-gradient(
+    45deg,
+    var(--ink) 0 2px,
+    transparent 2px 5px
+  );
 
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -79,9 +126,8 @@ h3 {
   align-items: center;
   gap: 10px;
   padding: calc(var(--safe-t) + 12px) 16px 12px;
-  background: rgba(11, 13, 18, 0.88);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  background: var(--screen-hi);
+  border-bottom: 3px solid var(--ink);
 }
 
 .topbar-title {
@@ -90,7 +136,9 @@ h3 {
 }
 
 .topbar h1 {
-  font-size: 19px;
+  font-family: var(--pixel);
+  font-size: 13px;
+  line-height: 1.45;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,7 +171,7 @@ h3 {
   bottom: 0;
   z-index: 30;
   padding: 12px 16px calc(12px + var(--safe-b));
-  background: linear-gradient(to top, var(--bg) 62%, rgba(11, 13, 18, 0));
+  background: linear-gradient(to top, var(--bg) 62%, var(--screen-hi));
   display: flex;
   gap: 10px;
 }
@@ -148,17 +196,30 @@ h3 {
 }
 
 .section-label {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.09em;
+  font-family: var(--pixel);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+/* Numbers read as a readout, not as prose. */
+.mono {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pixelated {
+  image-rendering: pixelated;
 }
 
 /* ----------------------------------------------------------- primitives -- */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px;
 }
@@ -170,7 +231,7 @@ h3 {
   gap: 8px;
   min-height: var(--tap);
   padding: 0 18px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
   font-weight: 600;
@@ -191,7 +252,7 @@ h3 {
 .btn-primary {
   background: var(--brand);
   border-color: var(--brand);
-  color: #17110d;
+  color: var(--screen-hi);
 }
 
 .btn-block {
@@ -214,8 +275,8 @@ h3 {
 
 .btn-danger {
   color: var(--danger);
-  border-color: #40232a;
-  background: #1d1418;
+  border-color: var(--ink);
+  background: var(--surface-2);
 }
 
 .icon-btn {
@@ -225,8 +286,8 @@ h3 {
   width: 40px;
   height: 40px;
   flex: none;
-  border-radius: 12px;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: 2px solid var(--border);
   background: var(--surface-2);
   cursor: pointer;
 }
@@ -253,7 +314,7 @@ h3 {
   min-height: var(--tap);
   padding: 12px 14px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   outline: none;
 }
@@ -279,8 +340,8 @@ h3 {
   min-height: 40px;
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: 2px solid var(--border);
   background: var(--surface-2);
   font-size: 14px;
   cursor: pointer;
@@ -318,17 +379,20 @@ h3 {
 
 /* ---------------------------------------------------------------- grades -- */
 .grade-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
+  min-width: 46px;
   height: 30px;
   padding: 0 9px;
-  border-radius: 9px;
-  font-weight: 750;
-  font-size: 14px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  color: #0b0d12;
+  color: var(--ink);
   flex: none;
 }
 
@@ -356,7 +420,7 @@ h3 {
 /* ---------------------------------------------------------------- timer -- */
 .timer-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px 16px 16px;
   text-align: center;
@@ -364,14 +428,14 @@ h3 {
 
 .timer-card.running {
   border-color: var(--brand-dim);
-  background: linear-gradient(160deg, #1d1410, var(--surface) 62%);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface) 62%);
 }
 
 /* Climbing reads green against resting's orange, so a glance at the phone on
    the mat tells you which clock is running. */
 .timer-card.climbing.running {
   border-color: var(--climb-dim);
-  background: linear-gradient(160deg, #0f2420, var(--surface) 62%);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface) 62%);
 }
 
 .timer-sub {
@@ -384,13 +448,13 @@ h3 {
 .btn-climb {
   background: var(--climb);
   border-color: var(--climb);
-  color: #06110d;
+  color: var(--screen-hi);
 }
 
 .btn-rest {
   background: var(--brand);
   border-color: var(--brand);
-  color: #17110d;
+  color: var(--screen-hi);
 }
 
 .timer-value {
@@ -428,7 +492,7 @@ h3 {
   display: inline-block;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--brand);
   margin-right: 7px;
   vertical-align: middle;
@@ -466,7 +530,7 @@ input[type='range'] {
 /* --pct and --fill are set inline so the track shows progress as it moves. */
 input[type='range']::-webkit-slider-runnable-track {
   height: 10px;
-  border-radius: 999px;
+  border-radius: 0;
   background: linear-gradient(
     to right,
     var(--fill, var(--brand)) var(--pct, 0%),
@@ -476,7 +540,7 @@ input[type='range']::-webkit-slider-runnable-track {
 
 input[type='range']::-moz-range-track {
   height: 10px;
-  border-radius: 999px;
+  border-radius: 0;
   background: linear-gradient(
     to right,
     var(--fill, var(--brand)) var(--pct, 0%),
@@ -490,8 +554,8 @@ input[type='range']::-webkit-slider-thumb {
   width: 30px;
   height: 30px;
   margin-top: -10px;
-  border-radius: 50%;
-  background: #fff;
+  border-radius: 0;
+  background: var(--surface);
   border: 3px solid var(--fill, var(--brand));
   cursor: pointer;
 }
@@ -499,8 +563,8 @@ input[type='range']::-webkit-slider-thumb {
 input[type='range']::-moz-range-thumb {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  background: #fff;
+  border-radius: 0;
+  background: var(--surface);
   border: 3px solid var(--fill, var(--brand));
   cursor: pointer;
 }
@@ -514,8 +578,8 @@ input[type='range']::-moz-range-thumb {
 
 .effort-option {
   height: 46px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: 2px solid var(--border);
   background: var(--surface-2);
   font-weight: 650;
   cursor: pointer;
@@ -540,7 +604,7 @@ input[type='range']::-moz-range-thumb {
   text-align: left;
   padding: 14px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
 }
@@ -566,7 +630,10 @@ input[type='range']::-moz-range-thumb {
   width: 42px;
   height: 42px;
   flex: none;
-  border-radius: 50%;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--pixel);
+  font-size: 11px;
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -576,14 +643,14 @@ input[type='range']::-moz-range-thumb {
 
 .bar {
   height: 6px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--surface-3);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 /* ---------------------------------------------------------------- stats -- */
@@ -595,15 +662,16 @@ input[type='range']::-moz-range-thumb {
 
 .stat {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius);
   padding: 13px 14px;
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--pixel);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -631,7 +699,9 @@ input[type='range']::-moz-range-thumb {
 
 .hist-bar {
   width: 100%;
-  border-radius: 6px 6px 3px 3px;
+  border-radius: 0;
+  border: 2px solid var(--ink);
+  border-bottom: 0;
   min-height: 3px;
   background: var(--surface-3);
   position: relative;
@@ -639,6 +709,11 @@ input[type='range']::-moz-range-thumb {
 }
 
 .hist-bar-sends {
+  /* Sends are the solid block at the base of the bar; attempts are the grade's
+     own tone above it. Height carries the count either way, so the chart still
+     reads if the dither is lost to a bad screen. */
+  background: var(--ink);
+  border-top: 2px solid var(--ink);
   position: absolute;
   left: 0;
   right: 0;
@@ -669,8 +744,8 @@ input[type='range']::-moz-range-thumb {
   max-height: 92dvh;
   overflow-y: auto;
   background: var(--bg);
-  border-top: 1px solid var(--border);
-  border-radius: 24px 24px 0 0;
+  border-top: 2px solid var(--border);
+  border-radius: 0;
   padding: 10px 16px calc(20px + var(--safe-b));
   animation: slide-up 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -678,7 +753,7 @@ input[type='range']::-moz-range-thumb {
 .sheet-grabber {
   width: 40px;
   height: 4px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--surface-3);
   margin: 4px auto 14px;
 }
@@ -704,7 +779,7 @@ input[type='range']::-moz-range-thumb {
   padding: 14px 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--brand-dim);
-  background: linear-gradient(140deg, #24170f, #171a22);
+  background: linear-gradient(140deg, var(--surface-2), var(--surface));
   cursor: pointer;
 }
 
@@ -724,8 +799,8 @@ input[type='range']::-moz-range-thumb {
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
   overflow: hidden;
-  background: #000;
-  border: 1px solid var(--border);
+  background: var(--ink);
+  border: 2px solid var(--border);
 }
 
 /* Climbing footage is nearly always shot upright; capped so a portrait clip
@@ -757,7 +832,7 @@ input[type='range']::-moz-range-thumb {
   gap: 12px;
   padding: 12px 14px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: inherit;
   text-decoration: none;
@@ -783,9 +858,9 @@ input[type='range']::-moz-range-thumb {
   width: 34px;
   height: 34px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--brand);
-  color: #17110d;
+  color: var(--screen-hi);
   font-size: 13px;
 }
 
@@ -798,15 +873,15 @@ input[type='range']::-moz-range-thumb {
 
 .snapshot-pb {
   border-color: var(--brand-dim);
-  background: linear-gradient(150deg, #211610, var(--surface) 65%);
+  background: linear-gradient(150deg, var(--surface-2), var(--surface) 65%);
 }
 
 .pb-badge {
   flex: none;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--brand);
-  color: #17110d;
+  color: var(--screen-hi);
   font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.03em;
@@ -843,20 +918,20 @@ input[type='range']::-moz-range-thumb {
 
 .snapshot-bar {
   height: 8px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--surface-3);
   overflow: hidden;
 }
 
 .snapshot-bar-fill {
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand), #ffa06b);
+  border-radius: 0;
+  background: linear-gradient(90deg, var(--brand), var(--ink-2));
   transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .snapshot-bar-fill.lifetime {
-  background: linear-gradient(90deg, var(--send), #7dd3fc);
+  background: linear-gradient(90deg, var(--send), var(--ink-2));
 }
 
 .snapshot-fact {
@@ -869,7 +944,7 @@ input[type='range']::-moz-range-thumb {
 .snapshot-lifetime {
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px solid var(--border);
+  border-top: 2px solid var(--border);
 }
 
 /* --------------------------------------------------------- celebration -- */
@@ -890,18 +965,37 @@ input[type='range']::-moz-range-thumb {
   gap: 6px;
   padding: 20px 34px;
   border-radius: var(--radius-lg);
-  background: rgba(11, 13, 18, 0.82);
-  backdrop-filter: blur(8px);
+  background: var(--screen-hi);
+  
   border: 1px solid var(--brand-dim);
   animation: pop 0.34s cubic-bezier(0.22, 1.4, 0.4, 1);
 }
 
 .allez {
-  font-size: 40px;
+  font-family: var(--pixel);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink);
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* A shout in Hangul or kanji has no pixel face to fall back on, so it gets the
+   device font at a size that matches the Latin cap height rather than the
+   pixel font's. */
+.allez.script {
+  font-family: ui-sans-serif, system-ui, sans-serif;
   font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--brand);
-  line-height: 1;
+  font-size: 40px;
+}
+
+.allez-roman {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 10px;
+  display: block;
 }
 
 .celebration-sub {
@@ -919,7 +1013,7 @@ input[type='range']::-moz-range-thumb {
 .confetti {
   position: absolute;
   top: -20px;
-  border-radius: 2px;
+  border-radius: 0;
   animation-name: fall;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
@@ -934,8 +1028,8 @@ input[type='range']::-moz-range-thumb {
 
 /* ------------------------------------------------------- rest alarm -- */
 .timer-card.due.running {
-  border-color: #b45309;
-  background: linear-gradient(160deg, #2a1a08, var(--surface) 62%);
+  border-color: var(--ink);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface) 62%);
   /* Glow, never move: this card holds the buttons you are reaching for, and a
      container that shifts under your thumb is a worse target than a still one.
      Only box-shadow animates, so nothing reflows and nothing slides. */
@@ -943,7 +1037,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 .timer-card.due .timer-label {
-  color: #fbbf24;
+  color: var(--ink);
 }
 
 @keyframes glow {
@@ -967,8 +1061,8 @@ input[type='range']::-moz-range-thumb {
 .target-chip {
   min-height: 34px;
   padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--text-dim);
   font-size: 12.5px;
@@ -979,16 +1073,16 @@ input[type='range']::-moz-range-thumb {
 .target-chip[aria-pressed='true'] {
   border-color: var(--brand);
   color: var(--brand);
-  background: #241610;
+  background: var(--surface-2);
 }
 
 /* ---------------------------------------------------------------- crew -- */
 .error-note {
   padding: 11px 13px;
   border-radius: var(--radius);
-  border: 1px solid #40232a;
-  background: #1d1418;
-  color: #fca5a5;
+  border: 1px solid var(--ink);
+  background: var(--surface-2);
+  color: var(--ink);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -997,7 +1091,7 @@ input[type='range']::-moz-range-thumb {
   padding: 9px 12px;
   border-radius: var(--radius);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
 }
 
 .share-state {
@@ -1041,7 +1135,7 @@ input[type='range']::-moz-range-thumb {
   width: 62px;
   padding: 0 4px;
   border: 0;
-  border-left: 1px solid var(--border);
+  border-left: 2px solid var(--border);
   background: var(--surface-2);
   color: var(--text-dim);
   font-size: 15px;
@@ -1054,15 +1148,172 @@ input[type='range']::-moz-range-thumb {
 
 .climb-share.shared {
   color: var(--send);
-  background: #10261f;
+  background: var(--surface-2);
 }
 
 .climb-share:disabled {
   opacity: 0.5;
 }
 
+/* A session row carries its own delete control, for the same reason the share
+   control sits on the attempt rather than inside a sheet: an action that
+   belongs to a thing goes on that thing. */
+.session-main {
+  align-items: center;
+}
+
+.row-delete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: none;
+  width: 62px;
+  padding: 0 4px;
+  border: 0;
+  border-left: 2px solid var(--border);
+  background: var(--surface-2);
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.row-delete:active {
+  background: var(--surface-3);
+}
+
 .climb-share-label {
   font-size: 10.5px;
   font-weight: 650;
   letter-spacing: 0.02em;
+}
+
+/* ------------------------------------------------------- field notes -- */
+.prof-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 0 4px;
+}
+
+.prof-portrait {
+  width: 160px;
+  height: 200px;
+  border: 3px solid var(--ink);
+  background: var(--screen-hi);
+}
+
+.prof-name {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+/* The dialogue box is the one piece of chrome that is purely costume, so it
+   gets the double border the handheld used for exactly this. */
+.dialogue {
+  position: relative;
+  background: var(--screen-hi);
+  border: 3px solid var(--ink);
+  box-shadow: inset 0 0 0 3px var(--screen-hi), inset 0 0 0 6px var(--ink);
+  padding: 20px 22px 26px;
+  cursor: pointer;
+  min-height: 108px;
+}
+
+.dialogue-text {
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 11px;
+  line-height: 1.9;
+}
+
+.caret {
+  display: inline-block;
+  width: 8px;
+  height: 12px;
+  margin-left: 2px;
+  background: var(--ink);
+  vertical-align: -1px;
+  animation: blink 0.8s steps(1) infinite;
+}
+
+.dialogue-more {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  font-size: 12px;
+  color: var(--ink);
+  animation: nudge 0.9s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes nudge {
+  50% { transform: translateY(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret,
+  .dialogue-more {
+    animation: none;
+  }
+}
+
+.reasons {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-dim);
+}
+
+.reasons li + li {
+  margin-top: 8px;
+}
+
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chain-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chain-form {
+  font-family: var(--pixel);
+  font-size: 10px;
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  color: var(--ink-2);
+}
+
+.chain-form.now {
+  background: var(--ink);
+  color: var(--screen-hi);
+}
+
+.chain-arrow {
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+/* The card is drawn at 1080x1920 and never shown; only the PNG leaves. */
+.offscreen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999px;
 }

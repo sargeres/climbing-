@@ -64,3 +64,29 @@ export function buzz(pattern: number | number[] = [180, 90, 180]): void {
     /* unsupported, or blocked without a gesture */
   }
 }
+
+/**
+ * Two quick rising notes, for when the shout could not be spoken.
+ *
+ * Deliberately different from the rest alarm: that one means "get on the
+ * wall", this one means "that go is logged", and a gym is no place to be
+ * decoding one beep from another.
+ */
+export function playSendChime(): void {
+  primeAudio()
+  if (!ctx || ctx.state !== 'running') return
+  const now = ctx.currentTime
+  for (const [index, freq] of [660, 990].entries()) {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'square'
+    osc.frequency.value = freq
+    const start = now + index * 0.09
+    gain.gain.setValueAtTime(0.0001, start)
+    gain.gain.exponentialRampToValueAtTime(0.22, start + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(start)
+    osc.stop(start + 0.14)
+  }
+}

@@ -1,8 +1,15 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { avatarColor, completionColor, gradeColor, initials } from '../lib/colors'
-import { GRADES, type Climb, type Grade } from '../lib/types'
-import { formatDurationShort } from '../lib/format'
-import { gradeBreakdown } from '../lib/stats'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  avatarColor,
+  avatarInk,
+  completionTone,
+  gradeTone,
+  initials,
+  TONES,
+} from '../lib/colors'
+import { GRADES, type Climb, type Grade, type Session } from '../lib/types'
+import { formatDate, formatDurationShort } from '../lib/format'
+import { gradeBreakdown, summarise } from '../lib/stats'
 
 export function TopBar({
   title,
@@ -40,8 +47,12 @@ export function TopBar({
 }
 
 export function GradePill({ grade }: { grade: Grade }) {
+  const tone = gradeTone(grade)
   return (
-    <span className="grade-pill" style={{ background: gradeColor(grade) }}>
+    <span
+      className="grade-pill"
+      style={{ background: tone.fill, backgroundImage: tone.pattern, color: tone.ink }}
+    >
       {grade}
     </span>
   )
@@ -49,7 +60,7 @@ export function GradePill({ grade }: { grade: Grade }) {
 
 export function Avatar({ name }: { name: string }) {
   return (
-    <span className="avatar" style={{ background: avatarColor(name), color: '#0b0d12' }}>
+    <span className="avatar" style={{ background: avatarColor(name), color: avatarInk(name) }}>
       {initials(name)}
     </span>
   )
@@ -75,18 +86,18 @@ export function GradePicker({
     <div className="grade-grid">
       {GRADES.map((grade) => {
         const selected = value === grade
-        const color = gradeColor(grade)
+        const tone = gradeTone(grade)
         return (
           <button
             key={grade}
             type="button"
-            className="grade-option"
+            className={`grade-option${selected ? ' selected' : ''}`}
             aria-pressed={selected}
             onClick={() => onChange(grade)}
             style={
               selected
-                ? { background: color, borderColor: color, color: '#0b0d12' }
-                : { borderColor: `${color}55`, color }
+                ? { background: tone.fill, backgroundImage: tone.pattern, color: tone.ink }
+                : undefined
             }
           >
             {grade}
@@ -110,19 +121,21 @@ export function GradeHistogram({ climbs }: { climbs: Climb[] }) {
             </span>
             <div
               className="hist-bar"
-              style={{
-                height: `${(row.attempts / max) * 100}%`,
-                background: row.attempts ? `${gradeColor(row.grade)}38` : 'var(--surface-2)',
-              }}
+              style={
+                row.attempts
+                  ? {
+                      height: `${(row.attempts / max) * 100}%`,
+                      background: gradeTone(row.grade).fill,
+                      backgroundImage: gradeTone(row.grade).pattern,
+                    }
+                  : { height: `${(row.attempts / max) * 100}%` }
+              }
               title={`${row.grade}: ${row.attempts} attempts, ${row.sends} sent`}
             >
               {row.sends > 0 && (
                 <div
                   className="hist-bar-sends"
-                  style={{
-                    height: `${(row.sends / row.attempts) * 100}%`,
-                    background: gradeColor(row.grade),
-                  }}
+                  style={{ height: `${(row.sends / row.attempts) * 100}%` }}
                 />
               )}
             </div>
@@ -168,7 +181,7 @@ export function ClimbRow({
   onClick?: () => void
   share?: ShareState
 }) {
-  const pctColor = completionColor(climb.completion)
+  const pct = completionTone(climb.completion)
   return (
     <div className="list-item climb-row">
       <button className="climb-main" onClick={onClick}>
@@ -181,12 +194,16 @@ export function ClimbRow({
             <div className="bar" style={{ flex: 1 }}>
               <div
                 className="bar-fill"
-                style={{ width: `${climb.completion}%`, background: pctColor }}
+                style={{
+                  width: `${climb.completion}%`,
+                  background: pct.fill,
+                  backgroundImage: pct.pattern,
+                }}
               />
             </div>
             <span
-              className="tiny"
-              style={{ color: pctColor, fontWeight: 650, minWidth: 38, textAlign: 'right' }}
+              className="tiny mono"
+              style={{ color: TONES.ink, fontWeight: 750, minWidth: 40, textAlign: 'right' }}
             >
               {climb.completion}%
             </span>
@@ -282,6 +299,148 @@ export function Sheet({
         {children}
       </div>
     </>
+  )
+}
+
+/**
+ * One session in a list, with its own delete control.
+ *
+ * The control lives on the row for the same reason the share control does:
+ * deleting a session used to mean opening it first and scrolling past every
+ * stat to a button at the bottom, which is indistinguishable from not having
+ * one. A mis-logged session is noticed in the list, so it is removable from
+ * the list.
+ *
+ * Two buttons in a container rather than one button, because a button cannot
+ * be nested inside a button and the delete target needs its own hit area.
+ */
+export function SessionRow({
+  session,
+  climbs,
+  onClick,
+  onDelete,
+}: {
+  session: Session
+  climbs: Climb[]
+  onClick: () => void
+  onDelete?: () => void
+}) {
+  const summary = summarise(climbs)
+  const live = session.endedAt === null
+  const when = formatDate(session.startedAt)
+  return (
+    <div className="list-item climb-row">
+      <button className="climb-main session-main" onClick={onClick}>
+        <div className="list-main">
+          <div className="list-title">{session.venue}</div>
+          <div className="tiny muted">
+            {when} ·{' '}
+            {formatDurationShort(((session.endedAt ?? Date.now()) - session.startedAt) / 1000)} ·{' '}
+            {summary.climbCount} attempt{summary.climbCount === 1 ? '' : 's'}, {summary.sendCount}{' '}
+            sent
+          </div>
+        </div>
+        {summary.hardestSend ? (
+          <GradePill grade={summary.hardestSend} />
+        ) : live ? (
+          <span className="pulse" />
+        ) : (
+          <span className="faint tiny">—</span>
+        )}
+      </button>
+
+      {onDelete && (
+        <button
+          className="row-delete"
+          onClick={onDelete}
+          aria-label={`Delete session at ${session.venue} on ${when}`}
+          title="Delete session"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="climb-share-label">Delete</span>
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** How long the destructive button stays inert on each step. */
+const ARM_MS = 600
+
+/**
+ * A confirmation that asks twice before destroying something.
+ *
+ * One sheet is enough to catch a tap that was meant for the row above. It is
+ * not enough for a session holding an afternoon of someone else's logged
+ * attempts, so this asks again: the first step names what would be lost, the
+ * second makes you agree to it after you have read the number.
+ *
+ * Each step puts the safe choice under the thumb and holds the destructive
+ * button inert for a moment, so the second half of an accidental double-tap
+ * lands on the safe option or on nothing. Because the steps share one Sheet,
+ * the Android back gesture dismisses the whole thing rather than leaving a
+ * half-answered question on screen.
+ */
+export function ConfirmDelete({
+  title,
+  lead,
+  finalTitle,
+  finalLead,
+  confirmLabel,
+  keepLabel = 'Keep it',
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  lead: ReactNode
+  finalTitle: string
+  finalLead: ReactNode
+  confirmLabel: string
+  keepLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const [second, setSecond] = useState(false)
+  const [armed, setArmed] = useState(false)
+
+  useEffect(() => {
+    setArmed(false)
+    const id = window.setTimeout(() => setArmed(true), ARM_MS)
+    return () => window.clearTimeout(id)
+  }, [second])
+
+  const danger = second ? confirmLabel : 'Delete'
+  return (
+    <Sheet title={second ? finalTitle : title} onClose={onCancel}>
+      <p className="muted tiny" style={{ marginTop: 0 }}>
+        {second ? finalLead : lead}
+      </p>
+      <div className="stack">
+        <button className="btn btn-primary btn-lg btn-block" autoFocus onClick={onCancel}>
+          {keepLabel}
+        </button>
+        <button
+          className="btn btn-danger btn-block"
+          disabled={!armed}
+          onClick={() => (second ? onConfirm() : setSecond(true))}
+        >
+          {armed ? danger : `${danger}…`}
+        </button>
+      </div>
+      {second && (
+        <p className="tiny faint" style={{ marginTop: 12, marginBottom: 0 }}>
+          Step 2 of 2 — this is the last chance to back out.
+        </p>
+      )}
+    </Sheet>
   )
 }
 

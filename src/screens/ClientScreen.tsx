@@ -1,9 +1,18 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { Avatar, EmptyState, GradeHistogram, GradePill, Sheet, Stat, TopBar } from '../components/ui'
-import { formatDate, formatDurationShort } from '../lib/format'
+import {
+  Avatar,
+  ConfirmDelete,
+  EmptyState,
+  GradeHistogram,
+  GradePill,
+  SessionRow,
+  Sheet,
+  Stat,
+  TopBar,
+} from '../components/ui'
+import { formatDate } from '../lib/format'
 import { gradeIndex, summarise, SEND_THRESHOLD } from '../lib/stats'
-import { gradeColor } from '../lib/colors'
 import type { Grade } from '../lib/types'
 import type { Screen } from '../lib/useNav'
 
@@ -26,6 +35,7 @@ export function ClientScreen({
   const [name, setName] = useState(client?.name ?? '')
   const [notes, setNotes] = useState(client?.notes ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deletingSession, setDeletingSession] = useState<string | null>(null)
 
   if (!client) {
     return (
@@ -126,48 +136,30 @@ export function ClientScreen({
           />
         ) : (
           <div className="list">
-            {sessions.map((session) => {
-              const sessionClimbs = store.climbsForSession(session.id)
-              const s = summarise(sessionClimbs)
-              return (
-                <button
-                  key={session.id}
-                  className="list-item"
-                  onClick={() =>
-                    navigate(
-                      session.endedAt === null
-                        ? { name: 'session', sessionId: session.id }
-                        : { name: 'sessionDetail', sessionId: session.id },
-                    )
-                  }
-                >
-                  <div className="list-main">
-                    <div className="list-title">{session.venue}</div>
-                    <div className="tiny muted">
-                      {formatDate(session.startedAt)} ·{' '}
-                      {formatDurationShort(
-                        ((session.endedAt ?? Date.now()) - session.startedAt) / 1000,
-                      )}{' '}
-                      · {s.climbCount} attempt{s.climbCount === 1 ? '' : 's'}, {s.sendCount} sent
-                    </div>
-                  </div>
-                  {s.hardestSend ? (
-                    <span
-                      className="grade-pill"
-                      style={{ background: gradeColor(s.hardestSend) }}
-                    >
-                      {s.hardestSend}
-                    </span>
-                  ) : session.endedAt === null ? (
-                    <span className="pulse" />
-                  ) : (
-                    <span className="faint tiny">—</span>
-                  )}
-                </button>
-              )
-            })}
+            {sessions.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                climbs={store.climbsForSession(session.id)}
+                onClick={() =>
+                  navigate(
+                    session.endedAt === null
+                      ? { name: 'session', sessionId: session.id }
+                      : { name: 'sessionDetail', sessionId: session.id },
+                  )
+                }
+                onDelete={() => setDeletingSession(session.id)}
+              />
+            ))}
           </div>
         )}
+
+        <button
+          className="btn btn-block"
+          onClick={() => navigate({ name: 'profile', clientId })}
+        >
+          See field notes
+        </button>
 
         <button className="btn btn-danger btn-block" onClick={() => setConfirmDelete(true)}>
           Delete client
@@ -186,6 +178,37 @@ export function ClientScreen({
           {store.activeSession ? 'Resume session' : 'Start a session'}
         </button>
       </div>
+
+      {deletingSession &&
+        (() => {
+          const target = sessions.find((s) => s.id === deletingSession)
+          if (!target) return null
+          const count = store.climbsForSession(target.id).length
+          const attempts = `${count} logged attempt${count === 1 ? '' : 's'}`
+          return (
+            <ConfirmDelete
+              title="Delete this session?"
+              lead={
+                <>
+                  {target.venue} on {formatDate(target.startedAt)}, with {attempts}.
+                </>
+              }
+              finalTitle="Delete it permanently?"
+              finalLead={
+                <>
+                  {attempts} will be removed from {client.name}&rsquo;s history and cannot be
+                  recovered.
+                </>
+              }
+              confirmLabel="Yes, delete"
+              onConfirm={() => {
+                store.deleteSession(target.id)
+                setDeletingSession(null)
+              }}
+              onCancel={() => setDeletingSession(null)}
+            />
+          )
+        })()}
 
       {editing && (
         <Sheet title="Edit client" onClose={() => setEditing(false)}>

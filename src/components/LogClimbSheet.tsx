@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { GradePicker, Sheet } from './ui'
-import { completionColor, effortColor, EFFORT_LABELS } from '../lib/colors'
+import { completionTone, effortColor, EFFORT_LABELS, TONES } from '../lib/colors'
 import { EFFORT_MAX, EFFORT_MIN, type Grade } from '../lib/types'
 import { formatDurationShort } from '../lib/format'
 import { parseVideoUrl } from '../lib/video'
@@ -67,7 +67,7 @@ export function LogClimbSheet({
     })
   }
 
-  const pctColor = completionColor(completion)
+  const pct = completionTone(completion)
 
   return (
     <Sheet title={title} onClose={onClose}>
@@ -141,7 +141,7 @@ export function LogClimbSheet({
         <div className="field">
           <div className="spread">
             <label htmlFor="completion">Completed</label>
-            <span className="pct-value" style={{ color: pctColor, fontSize: 32 }}>
+            <span className="pct-value" style={{ color: TONES.ink, fontSize: 24 }}>
               {completion}%
             </span>
           </div>
@@ -153,7 +153,7 @@ export function LogClimbSheet({
             step={5}
             value={completion}
             onChange={(e) => setCompletion(Number(e.target.value))}
-            style={{ '--pct': `${completion}%`, '--fill': pctColor } as CSSProperties}
+            style={{ '--pct': `${completion}%`, '--fill': pct.fill } as CSSProperties}
           />
           <div className="chips">
             {QUICK_PERCENTS.map((pct) => (
@@ -163,7 +163,12 @@ export function LogClimbSheet({
                 onClick={() => setCompletion(pct)}
                 style={
                   completion === pct
-                    ? { borderColor: completionColor(pct), color: completionColor(pct) }
+                    ? {
+                        background: completionTone(pct).fill,
+                        backgroundImage: completionTone(pct).pattern,
+                        color: completionTone(pct).ink,
+                        borderColor: TONES.ink,
+                      }
                     : undefined
                 }
               >
@@ -176,7 +181,7 @@ export function LogClimbSheet({
         <div className="field">
           <div className="spread">
             <label>Perceived effort</label>
-            <span className="tiny" style={{ color: effortColor(effort), fontWeight: 650 }}>
+            <span className="tiny mono" style={{ color: TONES.ink, fontWeight: 750 }}>
               {effort}/10 · {EFFORT_LABELS[effort]}
             </span>
           </div>
@@ -193,8 +198,12 @@ export function LogClimbSheet({
                   onClick={() => setEffort(n)}
                   style={
                     selected
-                      ? { background: color, borderColor: color, color: '#0b0d12' }
-                      : { borderColor: `${color}44`, color }
+                      ? {
+                          background: color,
+                          borderColor: TONES.ink,
+                          color: n >= 9 ? TONES.screen : TONES.ink,
+                        }
+                      : undefined
                   }
                 >
                   {n}
