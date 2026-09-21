@@ -109,14 +109,36 @@ export function migrate(raw: unknown): AppData {
       // client screen then displayed. Lift it into its own field and take it
       // back out of the text the coach actually wrote.
       const rawNotes = str(c.notes)
-      const marker = rawNotes.match(/\[form:([A-Za-z]+)\]/)
       return {
         id: str(c.id) || newId(),
         name: str(c.name, 'Unnamed'),
         notes: rawNotes.replace(/\s*\[form:[A-Za-z]+\]/g, '').trim(),
         createdAt: num(c.createdAt, Date.now()),
         archivedAt: typeof c.archivedAt === 'number' ? c.archivedAt : null,
-        lastForm: typeof c.lastForm === 'string' ? c.lastForm : (marker?.[1] ?? null),
+        dex: Array.isArray(c.dex)
+          ? (c.dex as Record<string, unknown>[])
+              .filter((e) => e && typeof e === 'object' && typeof e.no === 'number')
+              .map((e) => ({
+                no: num(e.no),
+                name: str(e.name, '???'),
+                displayName: str(e.displayName) || str(e.name, '???'),
+                level: num(e.level, 1),
+                rankIndex: num(e.rankIndex, 1),
+                rankName: str(e.rankName, 'Chalk Dust'),
+                title: typeof e.title === 'string' ? e.title : null,
+                trait: typeof e.trait === 'string' ? e.trait : null,
+                attempts: num(e.attempts),
+                sends: num(e.sends),
+                hardestSend: str(e.hardestSend, '—'),
+                sendRate: num(e.sendRate),
+                metres: num(e.metres),
+                reasons: Array.isArray(e.reasons) ? e.reasons.filter((r): r is string => typeof r === 'string') : [],
+                capturedAt: num(e.capturedAt, Date.now()),
+                sessionId: str(e.sessionId),
+              }))
+          : [],
+        lastAnalysedSessionId:
+          typeof c.lastAnalysedSessionId === 'string' ? c.lastAnalysedSessionId : null,
       }
     }),
     sessions: list(input.sessions, (s) => ({

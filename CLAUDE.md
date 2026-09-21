@@ -26,11 +26,34 @@ the completion ramp; both now ride **tone plus dither pattern** instead
 red-green colourblind coach. If you add a scale, encode it the same way —
 nothing in here may depend on hue.
 
-Also live: per-session delete on the row behind two confirmations, a
-multilingual shout on every logged attempt (`src/lib/shout.ts`), the field
-notes screen with its creature verdict (`src/lib/profile.ts`,
-`src/screens/ProfileScreen.tsx`), and an Instagram-Stories card drawn on a
-canvas (`src/lib/storycard.ts`).
+Also live: per-session delete on the row behind two confirmations, and a
+multilingual shout on every logged attempt (`src/lib/shout.ts`) — **confirmed
+audible on the user's own phone**, English, Hindi and Malay heard so far.
+Instagram sharing is confirmed working on their device too.
+
+**The Sendex** (`src/lib/profile.ts`, `src/lib/creatures.ts`,
+`src/screens/ProfileScreen.tsx`) reads a climber's log back as one of the 151
+first-generation creatures, with a level 1–99 and a rank out of 12. Three
+rules hold it together and breaking any one of them breaks the feature:
+
+1. **Recent sessions dominate.** Session weights halve every two sessions
+   back, so a breakthrough afternoon actually moves the number. The first
+   version averaged over all time, which made "evolves after each session" a
+   lie. The *trait* uses the same weighted window — an early version did not,
+   and called someone Napping because of how they climbed in March.
+2. **A creature is awarded once.** `collected` excludes it forever, so the
+   collection is both the history and the constraint.
+3. **The level is the truth, the creature is the costume.** When the fitting
+   creatures are used up the matcher drops to the nearest unclaimed one and
+   compensates with a title — that is how a level 90 climber becomes an
+   Archwizard Growlithe. Verified by seeding a collection of 120 and checking
+   the title actually fires; it does not fire in ordinary testing because five
+   creatures out of 151 always leaves a close match.
+
+One reading per session, locked by `lastAnalysedSessionId`. Cards for both a
+Sendex entry and a whole session are drawn in `src/lib/storycard.ts`; the
+session card leads with the grade chart because that chart means nothing to
+non-climbers, which is what makes it read as a game screen.
 
 **Crews have now run against the live project.** Creating a crew, joining by
 invite link, sharing an attempt and reading the feed all work on real Supabase.
@@ -171,7 +194,12 @@ Check these before writing new code in the same shape.
    voice filter torn out. Reading the `lang` on the rendered word — the
    language actually *chosen* — catches it.
 
-10. **A screen the app opens on has nothing beneath it.** `useNav` starts at
+10. **Tree-shaking hides an unused export.** Rendering a card from the
+   production bundle failed because nothing called the function yet, so
+   Rollup dropped it. Import from source via `vite` (dev), not `vite preview`,
+   when exercising something not yet wired — or better, wire it.
+
+11. **A screen the app opens on has nothing beneath it.** `useNav` starts at
    index 0 and `back()` is a no-op there, so opening straight onto the crew
    screen from an invite link left the back control inert *and* let Android's
    back gesture close the app. Seed the stack as `[home, crew]` instead. Both

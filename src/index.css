@@ -1317,3 +1317,81 @@ input[type='range']::-moz-range-thumb {
   pointer-events: none;
   left: -9999px;
 }
+
+/* ------------------------------------------------------------- sendex -- */
+.level-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.level-num {
+  font-family: var(--pixel);
+  font-size: 15px;
+  flex: none;
+}
+
+.level-max {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--ink-3);
+  flex: none;
+}
+
+.level-track {
+  flex: 1;
+  height: 22px;
+  border: 2px solid var(--ink);
+  background: var(--surface-2);
+}
+
+.level-fill {
+  height: 100%;
+  background: var(--ink);
+}
+
+.rank-line {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.dex-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.dex-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.dex-cell:active {
+  background: var(--surface-2);
+}
+
+.dex-no {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.dex-name {
+  font-family: var(--pixel);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dex-lv {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--ink-2);
+}

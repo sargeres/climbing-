@@ -1,5 +1,5 @@
 import { TONES } from './colors'
-import type { Analysis } from './profile'
+import type { DexEntry } from './types'
 
 /**
  * A 1080×1920 card, drawn on a canvas and handed to the system share sheet.
@@ -46,193 +46,18 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
   return lines
 }
 
-export interface CardInput {
-  /** Shown as the headline subject. Full name, as asked for. */
-  who: string
-  analysis: Analysis
-  /** Optional line under the title, e.g. the venue and date. */
-  footnote?: string
-}
-
-/**
- * Draw the profile card. Fonts must already be loaded — call
- * `document.fonts.ready` first, or the pixel face silently falls back to
- * monospace and the whole thing looks wrong.
- */
-export function drawProfileCard(canvas: HTMLCanvasElement, input: CardInput): void {
-  const { who, analysis, footnote } = input
-  canvas.width = STORY_W
-  canvas.height = STORY_H
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  ctx.imageSmoothingEnabled = false
-  ctx.fillStyle = TONES.screen
-  ctx.fillRect(0, 0, STORY_W, STORY_H)
-
-  // Screen bezel.
-  ctx.fillStyle = TONES.ink
-  ctx.fillRect(0, 0, STORY_W, 24)
-  ctx.fillRect(0, STORY_H - 24, STORY_W, 24)
-  ctx.fillRect(0, 0, 24, STORY_H)
-  ctx.fillRect(STORY_W - 24, 0, 24, STORY_H)
-
-  const M = 96
-  const inner = STORY_W - M * 2
-
-  ctx.textBaseline = 'top'
-  ctx.fillStyle = TONES.ink
-
-  // Header strip.
-  ctx.fillRect(M, 150, inner, 8)
-  ctx.font = `28px ${PIXEL}`
-  ctx.fillText('FIELD NOTES', M, 190)
-
-  // The verdict, the thing the card exists for.
-  ctx.font = `52px ${PIXEL}`
-  const headline = `${who.split(' ')[0]} is a ${analysis.creature.name}`
-  const headLines = wrap(ctx, headline, inner)
-  let y = 280
-  for (const l of headLines) {
-    ctx.fillText(l, M, y)
-    y += 78
-  }
-
-  y += 24
-  ctx.fillStyle = TONES.dark
-  ctx.font = '34px ui-sans-serif, system-ui, sans-serif'
-  for (const l of wrap(ctx, analysis.creature.flavour, inner)) {
-    ctx.fillText(l, M, y)
-    y += 48
-  }
-
-  // Evolution chain. It wraps: "Dratini > Dragonair > Dragonite" is wider than
-  // the card, and a line that runs off the edge takes the payoff with it.
-  y += 56
-  ctx.fillStyle = TONES.ink
-  ctx.font = `24px ${PIXEL}`
-  ctx.fillText('LINE', M, y)
-  y += 52
-  ctx.font = `28px ${PIXEL}`
-  const ARROW_W = ctx.measureText('>').width + 28
-  let x = M
-  for (const [i, form] of analysis.creature.line.entries()) {
-    const w = ctx.measureText(form).width + 36
-    if (x + w > M + inner && x > M) {
-      x = M
-      y += 82
-    }
-    const isNow = form === analysis.creature.name
-    if (isNow) {
-      ctx.fillStyle = TONES.ink
-      ctx.fillRect(x, y - 14, w, 60)
-      ctx.fillStyle = TONES.screen
-    } else {
-      ctx.strokeStyle = TONES.ink
-      ctx.lineWidth = 4
-      ctx.strokeRect(x, y - 14, w, 60)
-      ctx.fillStyle = TONES.dark
-    }
-    ctx.fillText(form, x + 18, y)
-    x += w
-    if (i < analysis.creature.line.length - 1) {
-      if (x + ARROW_W > M + inner) {
-        x = M
-        y += 82
-      } else {
-        ctx.fillStyle = TONES.ink
-        ctx.fillText('>', x + 10, y)
-        x += ARROW_W
-      }
-    }
-  }
-  y += 92
-
-  if (analysis.creature.next) {
-    ctx.fillStyle = TONES.dark
-    ctx.font = '30px ui-sans-serif, system-ui, sans-serif'
-    for (const l of wrap(ctx, `Next: ${analysis.creature.next.name} — ${analysis.creature.next.unlock}.`, inner)) {
-      ctx.fillText(l, M, y)
-      y += 44
-    }
-    y += 20
-  }
-
-  // Why, in the climber's own numbers — the part that makes the card worth
-  // posting rather than just a label.
-  ctx.fillStyle = TONES.ink
-  ctx.font = `24px ${PIXEL}`
-  ctx.fillText('WHY', M, y)
-  y += 52
-  ctx.font = '30px ui-sans-serif, system-ui, sans-serif'
-  for (const reason of analysis.reasons) {
-    ctx.fillStyle = TONES.ink
-    ctx.fillRect(M, y + 12, 16, 16)
-    ctx.fillStyle = TONES.dark
-    for (const [i, l] of wrap(ctx, reason, inner - 44).entries()) {
-      ctx.fillText(l, M + 44, y)
-      y += 44
-      void i
-    }
-    y += 12
-  }
-
-  // Stats block, pinned to the bottom so the card is never top-heavy however
-  // much or little the reasons ran to.
-  y = STORY_H - 700
-  const rows: [string, string][] = [
-    ['ATTEMPTS', String(analysis.stats.attempts)],
-    ['SENT', String(analysis.stats.sends)],
-    ['HARDEST', analysis.stats.hardestSend],
-    ['SEND RATE', `${analysis.stats.sendRate}%`],
-    ['METRES', `${analysis.stats.metres}m`],
-  ]
-  ctx.fillStyle = TONES.ink
-  ctx.fillRect(M, y, inner, 6)
-  y += 34
-  for (const [label, value] of rows) {
-    ctx.fillStyle = TONES.dark
-    ctx.font = `24px ${PIXEL}`
-    ctx.fillText(label, M, y + 10)
-    ctx.fillStyle = TONES.ink
-    ctx.font = `36px ${PIXEL}`
-    const vw = ctx.measureText(value).width
-    ctx.fillText(value, STORY_W - M - vw, y)
-    y += 74
-  }
-  ctx.fillStyle = TONES.ink
-  ctx.fillRect(M, y + 6, inner, 6)
-
-  // Dither band, purely so it reads as a two-bit screen rather than a receipt.
-  dither(ctx, M, y + 44, inner, 32, 10)
-
-  if (footnote) {
-    ctx.fillStyle = TONES.dark
-    ctx.font = '28px ui-sans-serif, system-ui, sans-serif'
-    ctx.fillText(footnote, M, STORY_H - 210)
-  }
-  ctx.fillStyle = TONES.ink
-  ctx.font = `22px ${PIXEL}`
-  ctx.fillText('SENDLOG', M, STORY_H - 150)
-
-  quantize(ctx)
-}
-
 /**
  * Snap every pixel to the nearest of the four tones.
  *
  * Canvas antialiases text, which quietly put seventy-odd greys on a card whose
  * whole claim is that it has four. One pass over the buffer at the end costs
- * about 30ms on a phone and makes the claim true — and it is the difference
- * between a card that looks like a two-bit screen and one that looks like a
- * screenshot of a website in greyscale.
+ * about 30ms on a phone and makes the claim true.
  */
 function quantize(ctx: CanvasRenderingContext2D): void {
   const ramp = [0x0f, 0x4a, 0x8b, 0xb2, 0xe6]
   const img = ctx.getImageData(0, 0, STORY_W, STORY_H)
   const d = img.data
   for (let i = 0; i < d.length; i += 4) {
-    // Everything drawn is already neutral, so luminance is just the mean.
     const lum = (d[i] + d[i + 1] + d[i + 2]) / 3
     let best = ramp[0]
     let bestGap = Infinity
@@ -247,6 +72,257 @@ function quantize(ctx: CanvasRenderingContext2D): void {
     d[i + 3] = 255
   }
   ctx.putImageData(img, 0, 0)
+}
+
+export interface CardInput {
+  /** Full name, as asked for. */
+  who: string
+  entry: DexEntry
+  /** How many of the roster this climber has collected. */
+  caught: number
+}
+
+/**
+ * Draw the profile card. Fonts must already be loaded — call
+ * `document.fonts.ready` first, or the pixel face silently falls back to
+ * monospace and the whole thing looks wrong.
+ */
+export function drawProfileCard(canvas: HTMLCanvasElement, input: CardInput): void {
+  const { who, entry, caught } = input
+  canvas.width = STORY_W
+  canvas.height = STORY_H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.imageSmoothingEnabled = false
+  ctx.fillStyle = TONES.screen
+  ctx.fillRect(0, 0, STORY_W, STORY_H)
+
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(0, 0, STORY_W, 24)
+  ctx.fillRect(0, STORY_H - 24, STORY_W, 24)
+  ctx.fillRect(0, 0, 24, STORY_H)
+  ctx.fillRect(STORY_W - 24, 0, 24, STORY_H)
+
+  const M = 96
+  const inner = STORY_W - M * 2
+  ctx.textBaseline = 'top'
+  ctx.fillStyle = TONES.ink
+
+  ctx.fillRect(M, 150, inner, 8)
+  ctx.font = `26px ${PIXEL}`
+  ctx.fillText(`SENDEX #${String(entry.no).padStart(3, '0')}`, M, 190)
+  const caughtLabel = `${caught}/151`
+  ctx.fillText(caughtLabel, STORY_W - M - ctx.measureText(caughtLabel).width, 190)
+
+  // The name, which is the joke and therefore the biggest thing on the card.
+  let y = 270
+  ctx.font = `50px ${PIXEL}`
+  for (const l of wrap(ctx, entry.displayName, inner)) {
+    ctx.fillText(l, M, y)
+    y += 74
+  }
+
+  y += 30
+  ctx.font = '34px ui-sans-serif, system-ui, sans-serif'
+  ctx.fillStyle = TONES.dark
+  ctx.fillText(`${who.split(' ')[0]}, as read from the log`, M, y)
+  y += 70
+
+  // Level bar — the real measure, so it gets the most graphic weight.
+  ctx.fillStyle = TONES.ink
+  ctx.font = `40px ${PIXEL}`
+  ctx.fillText(`LV ${entry.level}`, M, y)
+  const barX = M + 240
+  const barW = inner - 240
+  ctx.strokeStyle = TONES.ink
+  ctx.lineWidth = 5
+  ctx.strokeRect(barX, y + 2, barW, 42)
+  ctx.fillRect(barX, y + 2, Math.round((barW * entry.level) / 99), 42)
+  y += 74
+  ctx.font = `26px ${PIXEL}`
+  ctx.fillStyle = TONES.dark
+  ctx.fillText(`RANK ${entry.rankIndex}/12  ${entry.rankName.toUpperCase()}`, M, y)
+  y += 76
+
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, y, inner, 6)
+  y += 40
+
+  ctx.font = '30px ui-sans-serif, system-ui, sans-serif'
+  for (const reason of entry.reasons.slice(0, 3)) {
+    ctx.fillStyle = TONES.ink
+    ctx.fillRect(M, y + 12, 14, 14)
+    ctx.fillStyle = TONES.dark
+    for (const l of wrap(ctx, reason, inner - 44)) {
+      ctx.fillText(l, M + 42, y)
+      y += 44
+    }
+    y += 12
+  }
+
+  y = STORY_H - 620
+  const rows: [string, string][] = [
+    ['ATTEMPTS', String(entry.attempts)],
+    ['SENT', String(entry.sends)],
+    ['HARDEST', entry.hardestSend],
+    ['SEND RATE', `${entry.sendRate}%`],
+    ['METRES', `${entry.metres}m`],
+  ]
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, y, inner, 6)
+  y += 34
+  for (const [label, value] of rows) {
+    ctx.fillStyle = TONES.dark
+    ctx.font = `24px ${PIXEL}`
+    ctx.fillText(label, M, y + 10)
+    ctx.fillStyle = TONES.ink
+    ctx.font = `36px ${PIXEL}`
+    ctx.fillText(value, STORY_W - M - ctx.measureText(value).width, y)
+    y += 70
+  }
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, y + 6, inner, 6)
+  dither(ctx, M, y + 44, inner, 32, 10)
+
+  ctx.fillStyle = TONES.ink
+  ctx.font = `22px ${PIXEL}`
+  ctx.fillText('SENDLOG', M, STORY_H - 150)
+
+  quantize(ctx)
+}
+
+export interface HistoCardInput {
+  who: string
+  venue: string
+  /** One row per grade, lowest first. */
+  rows: { grade: string; attempts: number; sends: number }[]
+  headline: string
+  /** Short stat chips along the bottom. */
+  chips: string[]
+}
+
+/**
+ * The session card, built around the grade chart rather than around text.
+ *
+ * The chart is the reason this is worth posting: it means nothing to someone
+ * who does not climb, which is exactly why it reads as a game screen rather
+ * than as a fitness-app brag. So it gets the middle two-thirds of the story
+ * and everything else is caption.
+ */
+export function drawHistogramCard(canvas: HTMLCanvasElement, input: HistoCardInput): void {
+  const { who, venue, rows, headline, chips } = input
+  canvas.width = STORY_W
+  canvas.height = STORY_H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.imageSmoothingEnabled = false
+  ctx.fillStyle = TONES.screen
+  ctx.fillRect(0, 0, STORY_W, STORY_H)
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(0, 0, STORY_W, 24)
+  ctx.fillRect(0, STORY_H - 24, STORY_W, 24)
+  ctx.fillRect(0, 0, 24, STORY_H)
+  ctx.fillRect(STORY_W - 24, 0, 24, STORY_H)
+
+  const M = 96
+  const inner = STORY_W - M * 2
+  ctx.textBaseline = 'top'
+
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, 150, inner, 8)
+  ctx.font = `26px ${PIXEL}`
+  ctx.fillText(who.split(' ')[0].toUpperCase(), M, 190)
+  ctx.fillText(venue.toUpperCase(), STORY_W - M - ctx.measureText(venue.toUpperCase()).width, 190)
+
+  // The chart: 680px tall, the whole width, nothing competing with it.
+  const top = 300
+  const chartH = 860
+  const max = Math.max(1, ...rows.map((r) => r.attempts))
+  const colW = inner / rows.length
+  const barW = colW - 18
+
+  for (const [i, row] of rows.entries()) {
+    const x = M + i * colW + 9
+    const h = Math.round((row.attempts / max) * chartH)
+    const yTop = top + chartH - h
+
+    if (row.attempts > 0) {
+      // Attempts: outlined, filled with a dither so the sends block reads as
+      // solid against it.
+      ctx.strokeStyle = TONES.ink
+      ctx.lineWidth = 5
+      ctx.strokeRect(x, yTop, barW, h)
+      dither(ctx, x + 5, yTop + 5, barW - 10, h - 10, 12)
+
+      const sh = Math.round((row.sends / row.attempts) * h)
+      if (sh > 0) {
+        ctx.fillStyle = TONES.ink
+        ctx.fillRect(x, top + chartH - sh, barW, sh)
+      }
+      ctx.fillStyle = TONES.ink
+      ctx.font = `24px ${PIXEL}`
+      const n = String(row.attempts)
+      ctx.fillText(n, x + barW / 2 - ctx.measureText(n).width / 2, yTop - 36)
+    }
+
+    ctx.fillStyle = TONES.ink
+    ctx.font = `30px ${PIXEL}`
+    const g = row.grade
+    ctx.fillText(g, x + barW / 2 - ctx.measureText(g).width / 2, top + chartH + 22)
+  }
+
+  // Baseline.
+  ctx.fillStyle = TONES.ink
+  ctx.fillRect(M, top + chartH, inner, 6)
+
+  // Legend, because a solid block meaning "sent" is not self-evident.
+  let ly = top + chartH + 90
+  ctx.fillRect(M, ly, 34, 34)
+  ctx.font = '28px ui-sans-serif, system-ui, sans-serif'
+  ctx.fillStyle = TONES.dark
+  ctx.fillText('sent', M + 48, ly + 2)
+  ctx.strokeStyle = TONES.ink
+  ctx.lineWidth = 4
+  ctx.strokeRect(M + 190, ly, 34, 34)
+  dither(ctx, M + 194, ly + 4, 26, 26, 10)
+  ctx.fillStyle = TONES.dark
+  ctx.fillText('tried', M + 238, ly + 2)
+
+  ly += 90
+  ctx.fillStyle = TONES.ink
+  ctx.font = `40px ${PIXEL}`
+  for (const l of wrap(ctx, headline, inner)) {
+    ctx.fillText(l, M, ly)
+    ly += 60
+  }
+
+  // Chips follow the headline rather than sitting at the bottom of the frame —
+  // pinned to the floor they left a dead third of the card between the two.
+  // They wrap, so a fourth chip is shown rather than silently dropped.
+  let cx = M
+  let cy = ly + 30
+  ctx.font = `24px ${PIXEL}`
+  for (const chip of chips) {
+    const w = ctx.measureText(chip).width + 36
+    if (cx + w > M + inner) {
+      cx = M
+      cy += 70
+    }
+    ctx.strokeStyle = TONES.ink
+    ctx.lineWidth = 4
+    ctx.strokeRect(cx, cy, w, 56)
+    ctx.fillStyle = TONES.ink
+    ctx.fillText(chip, cx + 18, cy + 15)
+    cx += w + 14
+  }
+
+  ctx.fillStyle = TONES.ink
+  ctx.font = `22px ${PIXEL}`
+  ctx.fillText('SENDLOG', M, STORY_H - 150)
+
+  quantize(ctx)
 }
 
 export async function canvasToFile(canvas: HTMLCanvasElement, name: string): Promise<File | null> {

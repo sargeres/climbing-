@@ -16,12 +16,40 @@ export interface Client {
   createdAt: number
   archivedAt: number | null
   /**
-   * Creature from the last generated profile, so the next one can notice an
-   * evolution. Its own field rather than a marker smuggled into `notes` —
-   * that first version rendered `[form:Gyarados]` straight into the coach's
-   * own notes on the client screen.
+   * Everything this climber has been matched with, oldest first. The record
+   * is the feature: a creature is only ever awarded once, so the collection
+   * is both a history and the constraint that forces the next match to be
+   * something new.
    */
-  lastForm: string | null
+  dex: DexEntry[]
+  /**
+   * The session the last analysis was run against. One reading per session —
+   * re-rolling until you like the answer would make the whole thing worthless.
+   */
+  lastAnalysedSessionId: string | null
+}
+
+/** One creature captured into the Sendex. */
+export interface DexEntry {
+  /** National number, and the uniqueness key. */
+  no: number
+  name: string
+  /** With title and trait, as the professor said it. */
+  displayName: string
+  level: number
+  rankIndex: number
+  rankName: string
+  title: string | null
+  trait: string | null
+  /** Snapshot of the numbers behind it, so an old card can be redrawn. */
+  attempts: number
+  sends: number
+  hardestSend: string
+  sendRate: number
+  metres: number
+  reasons: string[]
+  capturedAt: number
+  sessionId: string
 }
 
 export interface Session {
@@ -65,11 +93,13 @@ export interface Climb {
 /**
  * 1 → 2 added per-attempt climb time and session coordinates.
  * 2 → 3 added a per-attempt video link.
- * 3 → 4 moved the remembered creature out of `notes` into `lastForm`, and
+ * 3 → 4 moved the remembered creature out of `notes` into its own field, and
  *       scrubs the leaked `[form:…]` marker from any notes already holding one.
+ * 4 → 5 replaced that single remembered form with the full Sendex collection
+ *       and the once-per-session lock.
  * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 4
+export const DATA_VERSION = 5
 
 export interface AppData {
   version: number

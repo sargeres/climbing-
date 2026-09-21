@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { ClimbRow, ConfirmDelete, EmptyState, GradeHistogram, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet } from '../components/LogClimbSheet'
 import { formatDateLong, formatDuration, formatDurationShort, formatTime } from '../lib/format'
-import { summarise, workRestRatio } from '../lib/stats'
+import { gradeBreakdown, summarise, workRestRatio } from '../lib/stats'
 import { buildSnapshot } from '../lib/snapshot'
 import { SessionSnapshot } from '../components/SessionSnapshot'
 import { fetchMySharedIds, readIdentity, shareClimb, unshareClimb } from '../lib/crew'
 import type { Climb } from '../lib/types'
+import { canvasToFile, drawHistogramCard, shareCard, type ShareOutcome } from '../lib/storycard'
 
 export function SessionDetailScreen({
   sessionId,
@@ -27,6 +28,9 @@ export function SessionDetailScreen({
   const [editing, setEditing] = useState<Climb | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [notes, setNotes] = useState(session?.notes ?? '')
+  const [cardState, setCardState] = useState<ShareOutcome | null>(null)
+  const [cardBusy, setCardBusy] = useState(false)
+  const cardRef = useRef<HTMLCanvasElement>(null)
 
   if (!session) {
     return (
@@ -85,6 +89,39 @@ export function SessionDetailScreen({
       else next.add(climb.id)
       return next
     })
+  }
+
+  // The session card leads with the grade chart rather than with text: it is
+  // the one thing in here that means nothing to someone who does not climb,
+  // which is exactly what makes it read as a game screen rather than a
+  // fitness-app brag.
+  const shareSession = async () => {
+    if (!cardRef.current || !session) return
+    setCardBusy(true)
+    setCardState(null)
+    try {
+      await document.fonts.ready
+      drawHistogramCard(cardRef.current, {
+        who: client?.name ?? 'Climber',
+        venue: session.venue,
+        rows: gradeBreakdown(climbs),
+        headline: snapshot.headline,
+        chips: [
+          `${summary.climbCount} attempt${summary.climbCount === 1 ? '' : 's'}`,
+          `${summary.sendCount} sent`,
+          formatDuration(duration),
+          summary.hardestSend ? `hardest ${summary.hardestSend}` : 'no sends',
+        ],
+      })
+      const file = await canvasToFile(cardRef.current, `${session.venue.replace(/\s+/g, '-')}-session.png`)
+      if (!file) {
+        setCardState('failed')
+        return
+      }
+      setCardState(await shareCard(file, snapshot.headline))
+    } finally {
+      setCardBusy(false)
+    }
   }
 
   const canReopen = session.endedAt !== null && store.activeSession === null
@@ -184,6 +221,29 @@ export function SessionDetailScreen({
           />
         </div>
 
+        {climbs.length > 0 && (
+          <>
+            <button
+              className="btn btn-primary btn-block"
+              onClick={() => void shareSession()}
+              disabled={cardBusy}
+            >
+              {cardBusy ? 'Drawing…' : 'Share this session'}
+            </button>
+            {cardState && (
+              <p className="tiny muted" style={{ textAlign: 'center' }}>
+                {cardState === 'shared'
+                  ? 'Sent to the share sheet — pick Instagram, then Stories.'
+                  : cardState === 'downloaded'
+                    ? 'This browser will not share files, so the card was saved instead.'
+                    : cardState === 'cancelled'
+                      ? 'Share cancelled.'
+                      : 'Could not make the card. Try again?'}
+              </p>
+            )}
+          </>
+        )}
+
         {canReopen && (
           <button
             className="btn btn-block"
@@ -199,6 +259,8 @@ export function SessionDetailScreen({
         <button className="btn btn-danger btn-block" onClick={() => setConfirmDelete(true)}>
           Delete session
         </button>
+
+        <canvas ref={cardRef} className="offscreen" aria-hidden="true" />
       </main>
 
       {editing && (
