@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { avatarColor, completionColor, gradeColor, initials } from '../lib/colors'
+import {
+  avatarColor,
+  avatarInk,
+  completionTone,
+  gradeTone,
+  initials,
+  TONES,
+} from '../lib/colors'
 import { GRADES, type Climb, type Grade, type Session } from '../lib/types'
 import { formatDate, formatDurationShort } from '../lib/format'
 import { gradeBreakdown, summarise } from '../lib/stats'
@@ -40,8 +47,12 @@ export function TopBar({
 }
 
 export function GradePill({ grade }: { grade: Grade }) {
+  const tone = gradeTone(grade)
   return (
-    <span className="grade-pill" style={{ background: gradeColor(grade) }}>
+    <span
+      className="grade-pill"
+      style={{ background: tone.fill, backgroundImage: tone.pattern, color: tone.ink }}
+    >
       {grade}
     </span>
   )
@@ -49,7 +60,7 @@ export function GradePill({ grade }: { grade: Grade }) {
 
 export function Avatar({ name }: { name: string }) {
   return (
-    <span className="avatar" style={{ background: avatarColor(name), color: '#0b0d12' }}>
+    <span className="avatar" style={{ background: avatarColor(name), color: avatarInk(name) }}>
       {initials(name)}
     </span>
   )
@@ -75,18 +86,18 @@ export function GradePicker({
     <div className="grade-grid">
       {GRADES.map((grade) => {
         const selected = value === grade
-        const color = gradeColor(grade)
+        const tone = gradeTone(grade)
         return (
           <button
             key={grade}
             type="button"
-            className="grade-option"
+            className={`grade-option${selected ? ' selected' : ''}`}
             aria-pressed={selected}
             onClick={() => onChange(grade)}
             style={
               selected
-                ? { background: color, borderColor: color, color: '#0b0d12' }
-                : { borderColor: `${color}55`, color }
+                ? { background: tone.fill, backgroundImage: tone.pattern, color: tone.ink }
+                : undefined
             }
           >
             {grade}
@@ -110,19 +121,21 @@ export function GradeHistogram({ climbs }: { climbs: Climb[] }) {
             </span>
             <div
               className="hist-bar"
-              style={{
-                height: `${(row.attempts / max) * 100}%`,
-                background: row.attempts ? `${gradeColor(row.grade)}38` : 'var(--surface-2)',
-              }}
+              style={
+                row.attempts
+                  ? {
+                      height: `${(row.attempts / max) * 100}%`,
+                      background: gradeTone(row.grade).fill,
+                      backgroundImage: gradeTone(row.grade).pattern,
+                    }
+                  : { height: `${(row.attempts / max) * 100}%` }
+              }
               title={`${row.grade}: ${row.attempts} attempts, ${row.sends} sent`}
             >
               {row.sends > 0 && (
                 <div
                   className="hist-bar-sends"
-                  style={{
-                    height: `${(row.sends / row.attempts) * 100}%`,
-                    background: gradeColor(row.grade),
-                  }}
+                  style={{ height: `${(row.sends / row.attempts) * 100}%` }}
                 />
               )}
             </div>
@@ -168,7 +181,7 @@ export function ClimbRow({
   onClick?: () => void
   share?: ShareState
 }) {
-  const pctColor = completionColor(climb.completion)
+  const pct = completionTone(climb.completion)
   return (
     <div className="list-item climb-row">
       <button className="climb-main" onClick={onClick}>
@@ -181,12 +194,16 @@ export function ClimbRow({
             <div className="bar" style={{ flex: 1 }}>
               <div
                 className="bar-fill"
-                style={{ width: `${climb.completion}%`, background: pctColor }}
+                style={{
+                  width: `${climb.completion}%`,
+                  background: pct.fill,
+                  backgroundImage: pct.pattern,
+                }}
               />
             </div>
             <span
-              className="tiny"
-              style={{ color: pctColor, fontWeight: 650, minWidth: 38, textAlign: 'right' }}
+              className="tiny mono"
+              style={{ color: TONES.ink, fontWeight: 750, minWidth: 40, textAlign: 'right' }}
             >
               {climb.completion}%
             </span>
@@ -324,9 +341,7 @@ export function SessionRow({
           </div>
         </div>
         {summary.hardestSend ? (
-          <span className="grade-pill" style={{ background: gradeColor(summary.hardestSend) }}>
-            {summary.hardestSend}
-          </span>
+          <GradePill grade={summary.hardestSend} />
         ) : live ? (
           <span className="pulse" />
         ) : (

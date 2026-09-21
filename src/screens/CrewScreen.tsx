@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EmptyState, GradePill, TopBar } from '../components/ui'
 import { VideoEmbed } from '../components/VideoEmbed'
-import { completionColor } from '../lib/colors'
+import { TONES } from '../lib/colors'
 import { formatDurationShort, formatRelativeDay } from '../lib/format'
 import {
   addComment,
@@ -172,8 +172,8 @@ function PostCard({
           </div>
         </div>
         <span
-          className="tiny"
-          style={{ color: completionColor(post.completion), fontWeight: 700, flex: 'none' }}
+          className="tiny mono"
+          style={{ color: TONES.ink, fontWeight: 750, flex: 'none' }}
         >
           {post.completion}%
         </span>

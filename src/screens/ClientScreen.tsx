@@ -154,6 +154,13 @@ export function ClientScreen({
           </div>
         )}
 
+        <button
+          className="btn btn-block"
+          onClick={() => navigate({ name: 'profile', clientId })}
+        >
+          See field notes
+        </button>
+
         <button className="btn btn-danger btn-block" onClick={() => setConfirmDelete(true)}>
           Delete client
         </button>
