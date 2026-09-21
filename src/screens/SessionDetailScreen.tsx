@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../lib/store'
-import { ClimbRow, EmptyState, GradeHistogram, Stat, TopBar } from '../components/ui'
+import { ClimbRow, ConfirmDelete, EmptyState, GradeHistogram, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet } from '../components/LogClimbSheet'
 import { formatDateLong, formatDuration, formatDurationShort, formatTime } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
@@ -226,33 +226,31 @@ export function SessionDetailScreen({
       )}
 
       {confirmDelete && (
-        <>
-          <div className="scrim" onClick={() => setConfirmDelete(false)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Delete session">
-            <div className="sheet-grabber" />
-            <h2 style={{ fontSize: 19, marginBottom: 8 }}>Delete this session?</h2>
-            <p className="muted tiny" style={{ marginTop: 0 }}>
+        <ConfirmDelete
+          title="Delete this session?"
+          lead={
+            <>
               This removes the session and its {climbs.length} logged attempt
-              {climbs.length === 1 ? '' : 's'}. It cannot be undone.
-            </p>
-            <div className="stack">
-              <button
-                className="btn btn-danger btn-lg btn-block"
-                onClick={() => {
-                  store.deleteSession(sessionId)
-                  setConfirmDelete(false)
-                  onDeleted()
-                }}
-              >
-                Delete
-              </button>
-              <button className="btn btn-block" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </>
+              {climbs.length === 1 ? '' : 's'}.
+            </>
+          }
+          finalTitle="Delete it permanently?"
+          finalLead={
+            <>
+              {climbs.length} attempt{climbs.length === 1 ? '' : 's'} at {session.venue} will be
+              gone for good. This cannot be undone.
+            </>
+          }
+          confirmLabel="Yes, delete"
+          onConfirm={() => {
+            store.deleteSession(sessionId)
+            setConfirmDelete(false)
+            onDeleted()
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
       )}
+
     </>
   )
 }

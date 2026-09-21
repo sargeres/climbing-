@@ -1,8 +1,8 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { avatarColor, completionColor, gradeColor, initials } from '../lib/colors'
-import { GRADES, type Climb, type Grade } from '../lib/types'
-import { formatDurationShort } from '../lib/format'
-import { gradeBreakdown } from '../lib/stats'
+import { GRADES, type Climb, type Grade, type Session } from '../lib/types'
+import { formatDate, formatDurationShort } from '../lib/format'
+import { gradeBreakdown, summarise } from '../lib/stats'
 
 export function TopBar({
   title,
@@ -282,6 +282,150 @@ export function Sheet({
         {children}
       </div>
     </>
+  )
+}
+
+/**
+ * One session in a list, with its own delete control.
+ *
+ * The control lives on the row for the same reason the share control does:
+ * deleting a session used to mean opening it first and scrolling past every
+ * stat to a button at the bottom, which is indistinguishable from not having
+ * one. A mis-logged session is noticed in the list, so it is removable from
+ * the list.
+ *
+ * Two buttons in a container rather than one button, because a button cannot
+ * be nested inside a button and the delete target needs its own hit area.
+ */
+export function SessionRow({
+  session,
+  climbs,
+  onClick,
+  onDelete,
+}: {
+  session: Session
+  climbs: Climb[]
+  onClick: () => void
+  onDelete?: () => void
+}) {
+  const summary = summarise(climbs)
+  const live = session.endedAt === null
+  const when = formatDate(session.startedAt)
+  return (
+    <div className="list-item climb-row">
+      <button className="climb-main session-main" onClick={onClick}>
+        <div className="list-main">
+          <div className="list-title">{session.venue}</div>
+          <div className="tiny muted">
+            {when} ·{' '}
+            {formatDurationShort(((session.endedAt ?? Date.now()) - session.startedAt) / 1000)} ·{' '}
+            {summary.climbCount} attempt{summary.climbCount === 1 ? '' : 's'}, {summary.sendCount}{' '}
+            sent
+          </div>
+        </div>
+        {summary.hardestSend ? (
+          <span className="grade-pill" style={{ background: gradeColor(summary.hardestSend) }}>
+            {summary.hardestSend}
+          </span>
+        ) : live ? (
+          <span className="pulse" />
+        ) : (
+          <span className="faint tiny">—</span>
+        )}
+      </button>
+
+      {onDelete && (
+        <button
+          className="row-delete"
+          onClick={onDelete}
+          aria-label={`Delete session at ${session.venue} on ${when}`}
+          title="Delete session"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="climb-share-label">Delete</span>
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** How long the destructive button stays inert on each step. */
+const ARM_MS = 600
+
+/**
+ * A confirmation that asks twice before destroying something.
+ *
+ * One sheet is enough to catch a tap that was meant for the row above. It is
+ * not enough for a session holding an afternoon of someone else's logged
+ * attempts, so this asks again: the first step names what would be lost, the
+ * second makes you agree to it after you have read the number.
+ *
+ * Each step puts the safe choice under the thumb and holds the destructive
+ * button inert for a moment, so the second half of an accidental double-tap
+ * lands on the safe option or on nothing. Because the steps share one Sheet,
+ * the Android back gesture dismisses the whole thing rather than leaving a
+ * half-answered question on screen.
+ */
+export function ConfirmDelete({
+  title,
+  lead,
+  finalTitle,
+  finalLead,
+  confirmLabel,
+  keepLabel = 'Keep it',
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  lead: ReactNode
+  finalTitle: string
+  finalLead: ReactNode
+  confirmLabel: string
+  keepLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const [second, setSecond] = useState(false)
+  const [armed, setArmed] = useState(false)
+
+  useEffect(() => {
+    setArmed(false)
+    const id = window.setTimeout(() => setArmed(true), ARM_MS)
+    return () => window.clearTimeout(id)
+  }, [second])
+
+  const danger = second ? confirmLabel : 'Delete'
+  return (
+    <Sheet title={second ? finalTitle : title} onClose={onCancel}>
+      <p className="muted tiny" style={{ marginTop: 0 }}>
+        {second ? finalLead : lead}
+      </p>
+      <div className="stack">
+        <button className="btn btn-primary btn-lg btn-block" autoFocus onClick={onCancel}>
+          {keepLabel}
+        </button>
+        <button
+          className="btn btn-danger btn-block"
+          disabled={!armed}
+          onClick={() => (second ? onConfirm() : setSecond(true))}
+        >
+          {armed ? danger : `${danger}…`}
+        </button>
+      </div>
+      {second && (
+        <p className="tiny faint" style={{ marginTop: 12, marginBottom: 0 }}>
+          Step 2 of 2 — this is the last chance to back out.
+        </p>
+      )}
+    </Sheet>
   )
 }
 
