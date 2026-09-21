@@ -15,6 +15,13 @@ export interface Client {
   notes: string
   createdAt: number
   archivedAt: number | null
+  /**
+   * Creature from the last generated profile, so the next one can notice an
+   * evolution. Its own field rather than a marker smuggled into `notes` —
+   * that first version rendered `[form:Gyarados]` straight into the coach's
+   * own notes on the client screen.
+   */
+  lastForm: string | null
 }
 
 export interface Session {
@@ -58,9 +65,11 @@ export interface Climb {
 /**
  * 1 → 2 added per-attempt climb time and session coordinates.
  * 2 → 3 added a per-attempt video link.
+ * 3 → 4 moved the remembered creature out of `notes` into `lastForm`, and
+ *       scrubs the leaked `[form:…]` marker from any notes already holding one.
  * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 3
+export const DATA_VERSION = 4
 
 export interface AppData {
   version: number

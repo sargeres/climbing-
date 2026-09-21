@@ -72,7 +72,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
     )
   }
 
-  const previous = client.notes.match(/\[form:([A-Za-z]+)\]/)?.[1] ?? null
+  const previous = client.lastForm
 
   const generate = () => {
     setGenerating(true)
@@ -84,8 +84,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
       setAnalysis(next)
       setGenerating(false)
       // Remember the form so the next profile can notice an evolution.
-      const stripped = client.notes.replace(/\s*\[form:[A-Za-z]+\]/, '')
-      store.updateClient(clientId, { notes: `${stripped} [form:${next.creature.name}]`.trim() })
+      store.updateClient(clientId, { lastForm: next.creature.name })
     }, 900)
   }
 

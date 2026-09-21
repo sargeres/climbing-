@@ -104,13 +104,21 @@ export function migrate(raw: unknown): AppData {
 
   return {
     version: DATA_VERSION,
-    clients: list(input.clients, (c) => ({
-      id: str(c.id) || newId(),
-      name: str(c.name, 'Unnamed'),
-      notes: str(c.notes),
-      createdAt: num(c.createdAt, Date.now()),
-      archivedAt: typeof c.archivedAt === 'number' ? c.archivedAt : null,
-    })),
+    clients: list(input.clients, (c) => {
+      // v3 stashed the last creature in the notes as `[form:Name]`, which the
+      // client screen then displayed. Lift it into its own field and take it
+      // back out of the text the coach actually wrote.
+      const rawNotes = str(c.notes)
+      const marker = rawNotes.match(/\[form:([A-Za-z]+)\]/)
+      return {
+        id: str(c.id) || newId(),
+        name: str(c.name, 'Unnamed'),
+        notes: rawNotes.replace(/\s*\[form:[A-Za-z]+\]/g, '').trim(),
+        createdAt: num(c.createdAt, Date.now()),
+        archivedAt: typeof c.archivedAt === 'number' ? c.archivedAt : null,
+        lastForm: typeof c.lastForm === 'string' ? c.lastForm : (marker?.[1] ?? null),
+      }
+    }),
     sessions: list(input.sessions, (s) => ({
       id: str(s.id) || newId(),
       clientId: str(s.clientId),
