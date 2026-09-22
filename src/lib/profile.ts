@@ -1,43 +1,105 @@
-import { gradeIndex, summarise, SEND_THRESHOLD } from './stats'
+import { CREATURES, MAX_POWER, MIN_POWER, type Creature } from './creatures'
+import { gradeIndex, SEND_THRESHOLD } from './stats'
 import { GRADES, type Climb, type Session } from './types'
 
 /**
- * A climber's profile, read back as a creature from a certain 1996 handheld.
+ * Reading a climber's log back as a creature, a level and a rank.
  *
- * Two rules decide the match, in order:
+ * Three rules, in order of how much they matter:
  *
- * 1. **Power tier.** The creature's strength has to match the climber's. A V6
- *    sender is not a Magikarp however scrappy they are, and someone eight
- *    attempts into their first week is not a Dragonite however neat their
- *    footwork. Tier comes from hardest send, with volume and send rate as
- *    tie-breaks.
- * 2. **Style.** Within a tier, the line is picked by how they climb —
- *    strength, technique, relentlessness or recovery.
+ * 1. **Recent sessions count for more.** The first version averaged over all
+ *    time, which made "evolves after each session" a lie — a climber fifty
+ *    attempts deep could have a breakthrough afternoon and barely move the
+ *    lifetime mean. Every session now carries a weight that halves every two
+ *    sessions back, so last Tuesday is worth roughly four of a session from a
+ *    month ago.
  *
- * The evolution line is the point. A profile that only labelled you would be
- * a horoscope; one that names the next form and what unlocks it is a training
- * goal. "Machoke, and Machamp is one V5 away" is something a coach can use on
- * the next session.
+ * 2. **The level is the truth; the creature is the costume.** Level 1–99 comes
+ *    straight from the weighted score. The creature is then chosen to match
+ *    that level — but a climber can only be told they are a Machamp once, so
+ *    when the fitting creatures are used up the matcher drops to the nearest
+ *    unclaimed one and compensates with a title. That is why a level 71
+ *    climber can be a Supreme Wizard Pikachu: the Pikachu is what was left,
+ *    the title and the 71 are what is actually being said.
+ *
+ * 3. **The trait is the joke.** It reads one behaviour out of the log and
+ *    names it — the climber who sends hard but rests for five minutes between
+ *    goes is Napping, and gets told so.
  */
-export interface Creature {
+
+const BOULDER_HEIGHT_M = 4.5
+
+/** Sessions back at which a session's weight halves. */
+const HALF_LIFE_SESSIONS = 2
+
+/** Attempts in a session that counts as full marks for volume. */
+const VOLUME_TARGET = 20
+
+export interface Rank {
+  index: number
+  of: number
   name: string
-  /** Where this form sits in its own line, for the chain display. */
-  line: string[]
-  /** Base stat total, the power ranking these are ordered by. */
-  power: number
-  /** One line on what the creature is like. */
-  flavour: string
-  /** What it takes to reach the next form; null at the end of a line. */
-  next: { name: string; unlock: string } | null
+}
+
+/** Twelve bands across levels 1–99, so a rank is legible without the number. */
+const RANKS: { upTo: number; name: string }[] = [
+  { upTo: 8, name: 'Chalk Dust' },
+  { upTo: 16, name: 'First Timer' },
+  { upTo: 25, name: 'Slab Apprentice' },
+  { upTo: 33, name: 'Crimp Rookie' },
+  { upTo: 41, name: 'Steady Hand' },
+  { upTo: 49, name: 'Crag Regular' },
+  { upTo: 58, name: 'Problem Solver' },
+  { upTo: 66, name: 'Roof Runner' },
+  { upTo: 74, name: 'Project Crusher' },
+  { upTo: 82, name: 'Wall Veteran' },
+  { upTo: 91, name: 'Local Legend' },
+  { upTo: 99, name: 'Apex' },
+]
+
+export function rankFor(level: number): Rank {
+  const i = RANKS.findIndex((r) => level <= r.upTo)
+  const index = i === -1 ? RANKS.length - 1 : i
+  return { index: index + 1, of: RANKS.length, name: RANKS[index].name }
+}
+
+/**
+ * Titles for when the creature is weaker than the climber.
+ *
+ * Deliberately not drawn from any official bestiary — these are ours, and the
+ * escalation is the joke: the further the roster has been stripped of
+ * creatures that fit, the sillier the honorific has to get to make up the
+ * difference.
+ */
+const TITLES: { minGap: number; title: string }[] = [
+  { minGap: 330, title: 'Supreme Wizard' },
+  { minGap: 260, title: 'Archwizard' },
+  { minGap: 195, title: 'Wizard' },
+  { minGap: 135, title: 'Ascendant' },
+  { minGap: 80, title: 'Feral' },
+  { minGap: 35, title: 'Chalked' },
+]
+
+function titleFor(gap: number): string | null {
+  return TITLES.find((t) => gap >= t.minGap)?.title ?? null
+}
+
+export interface Trait {
+  word: string
+  line: string
 }
 
 export interface Analysis {
   creature: Creature
-  /** The sentence the professor opens with. */
-  verdict: string
-  /** Why, in the climber's own numbers. */
+  /** 1–99. */
+  level: number
+  rank: Rank
+  /** Honorific when the creature under-sells the level, else null. */
+  title: string | null
+  trait: Trait | null
+  /** "Supreme Wizard Napping Pikachu" — what the professor actually says. */
+  displayName: string
   reasons: string[]
-  /** Facts the card and the professor both draw on. */
   stats: {
     sessions: number
     attempts: number
@@ -50,262 +112,178 @@ export interface Analysis {
   }
 }
 
-const BOULDER_HEIGHT_M = 4.5
+interface Weighted {
+  climb: Climb
+  weight: number
+}
 
-const creature = (
-  name: string,
-  line: string[],
-  power: number,
-  flavour: string,
-  next: { name: string; unlock: string } | null,
-): Creature => ({ name, line, power, flavour, next })
+/** Session weights, newest first, halving every HALF_LIFE_SESSIONS back. */
+function weighClimbs(climbs: Climb[], sessions: Session[]): Weighted[] {
+  const order = [...sessions].sort((a, b) => b.startedAt - a.startedAt)
+  const weightOf = new Map<string, number>()
+  order.forEach((s, i) => weightOf.set(s.id, Math.pow(0.5, i / HALF_LIFE_SESSIONS)))
+  return climbs.map((climb) => ({ climb, weight: weightOf.get(climb.sessionId) ?? 0.05 }))
+}
 
-/* The roster, ordered loosely by power. Each entry owns its own line so the
-   chain can be drawn without a separate table. */
-export const PSYDUCK = creature(
-  'Psyduck',
-  ['Psyduck', 'Golduck'],
-  320,
-  'Capable, and visibly unsure which part of that was the good bit.',
-  { name: 'Golduck', unlock: 'log 20 attempts — the pattern needs data before it can be read' },
-)
-export const MAGIKARP = creature(
-  'Magikarp',
-  ['Magikarp', 'Gyarados'],
-  200,
-  'Throwing itself at the wall with more commitment than success. Famously, briefly.',
-  { name: 'Gyarados', unlock: 'send a third of your attempts — the turn is sudden when it comes' },
-)
-export const EEVEE = creature(
-  'Eevee',
-  ['Eevee', '???'],
-  325,
-  'Spread across every grade on the board, committed to none of them yet.',
-  { name: 'a specialism', unlock: 'concentrate on one grade band and the type picks itself' },
-)
-export const PIKACHU = creature(
-  'Pikachu',
-  ['Pikachu', 'Raichu'],
-  320,
-  'Quick, busy, back on the wall before the forearms have finished complaining.',
-  { name: 'Raichu', unlock: 'send a V4 — the speed is there, the voltage is not yet' },
-)
-export const RAICHU = creature(
-  'Raichu',
-  ['Pikachu', 'Raichu'],
-  485,
-  'High volume at real grades. Gets through more climbing in an hour than most do in three.',
-  null,
-)
-export const MACHOP = creature(
-  'Machop',
-  ['Machop', 'Machoke', 'Machamp'],
-  305,
-  'Strength first, and asking the wall to be a strength problem.',
-  { name: 'Machoke', unlock: 'send a V3' },
-)
-export const MACHOKE = creature(
-  'Machoke',
-  ['Machop', 'Machoke', 'Machamp'],
-  405,
-  'Power applied bluntly and often — and it is working.',
-  { name: 'Machamp', unlock: 'send a V5' },
-)
-export const MACHAMP = creature(
-  'Machamp',
-  ['Machop', 'Machoke', 'Machamp'],
-  505,
-  'Four arms would explain a lot. Nothing on this board is too big.',
-  null,
-)
-export const ABRA = creature(
-  'Abra',
-  ['Abra', 'Kadabra', 'Alakazam'],
-  310,
-  'Barely on the wall. Reads it, does it, sits back down.',
-  { name: 'Kadabra', unlock: 'send a V3 without dropping below a 60% average' },
-)
-export const KADABRA = creature(
-  'Kadabra',
-  ['Abra', 'Kadabra', 'Alakazam'],
-  400,
-  'Solves the problem before touching it, which is why so few goes are wasted.',
-  { name: 'Alakazam', unlock: 'send a V4 while keeping that efficiency' },
-)
-export const ALAKAZAM = creature(
-  'Alakazam',
-  ['Abra', 'Kadabra', 'Alakazam'],
-  500,
-  'Almost every attempt goes in. Nothing here is being brute-forced.',
-  null,
-)
-export const PRIMEAPE = creature(
-  'Primeape',
-  ['Mankey', 'Primeape'],
-  455,
-  'Does not rest so much as briefly stop. Effort dial welded to the top.',
-  null,
-)
-export const ONIX = creature(
-  'Onix',
-  ['Onix'],
-  385,
-  'Stays on the wall long after the point where most people step off.',
-  null,
-)
-export const SNORLAX = creature(
-  'Snorlax',
-  ['Snorlax'],
-  540,
-  'Rests like it is the main event, then does something enormous.',
-  null,
-)
-export const GYARADOS = creature(
-  'Gyarados',
-  ['Magikarp', 'Gyarados'],
-  540,
-  'The flailing stopped and something else showed up. Nobody saw it coming except the log.',
-  null,
-)
-export const DRAGONITE = creature(
-  'Dragonite',
-  ['Dratini', 'Dragonair', 'Dragonite'],
-  600,
-  'Strong everywhere, weak nowhere, and far gentler about it than the numbers suggest.',
-  null,
-)
-export const MEWTWO = creature(
-  'Mewtwo',
-  ['Mewtwo'],
-  680,
-  'Hardest grade on the board, sent at will, at volume. There is no next form.',
-  null,
-)
+const wsum = (items: Weighted[], pick: (c: Climb) => number): number =>
+  items.reduce((t, i) => t + i.weight * pick(i.climb), 0)
+
+const wtotal = (items: Weighted[]): number => items.reduce((t, i) => t + i.weight, 0)
 
 export interface ProfileInput {
   climbs: Climb[]
   sessions: Session[]
-  /** The creature from the previous generated profile, if there was one. */
-  previous?: string | null
+  /** Creature numbers this climber has already been given. */
+  collected?: number[]
 }
 
-/**
- * Assign a creature.
- *
- * Deliberately a readable ladder of cases rather than a scoring matrix: a
- * coach has to be able to answer "why am I a Snorlax" and the honest answer
- * should be one sentence, not a weighted sum.
- */
-export function analyse({ climbs, sessions, previous }: ProfileInput): Analysis {
-  const s = summarise(climbs)
-  const sends = climbs.filter((c) => c.completion >= SEND_THRESHOLD)
-  const sendRate = climbs.length ? sends.length / climbs.length : 0
-  const hardest = s.hardestSend
-  const hardestIdx = hardest ? gradeIndex(hardest) : -1
-  const perSession = sessions.length ? climbs.length / sessions.length : climbs.length
-  const avgRest = climbs.length ? s.totalRestSec / climbs.length : 0
-  const avgClimbSec = s.timedClimbCount ? s.totalClimbSec / s.timedClimbCount : 0
-  const gradeSpread = new Set(climbs.map((c) => c.grade)).size
-  const metres = Math.round(
-    climbs.reduce((t, c) => t + (c.completion / 100) * BOULDER_HEIGHT_M, 0),
+export function analyse({ climbs, sessions, collected = [] }: ProfileInput): Analysis {
+  const items = weighClimbs(climbs, sessions)
+  const total = wtotal(items)
+  const sends = items.filter((i) => i.climb.completion >= SEND_THRESHOLD)
+  const sendWeight = wtotal(sends)
+
+  // Grade: mostly the hardest thing sent recently, partly the typical one, so
+  // a single lucky send does not carry a whole profile on its own.
+  const hardestIdx = sends.reduce((best, i) => Math.max(best, gradeIndex(i.climb.grade)), -1)
+  const meanSentIdx = sendWeight > 0 ? wsum(sends, (c) => gradeIndex(c.grade)) / sendWeight : 0
+  const gradeScore =
+    hardestIdx < 0 ? 0 : 0.62 * (hardestIdx / (GRADES.length - 1)) + 0.38 * (meanSentIdx / (GRADES.length - 1))
+
+  const sendScore = total > 0 ? sendWeight / total : 0
+
+  const weightedSessions = sessions.length > 0 ? Math.max(1, wtotal(items) / Math.max(1, total / sessions.length)) : 1
+  const perSession = sessions.length > 0 ? climbs.length / sessions.length : climbs.length
+  const volumeScore = Math.min(1, perSession / VOLUME_TARGET)
+
+  const effortScore = total > 0 ? wsum(items, (c) => c.effort) / total / 10 : 0
+
+  const power =
+    100 * (0.45 * gradeScore + 0.25 * sendScore + 0.18 * volumeScore + 0.12 * effortScore)
+
+  // A first session should not read as level 1 of 99 — that is discouraging and
+  // also untrue, since a brand-new climber sending V2 is not nothing. The floor
+  // rises as soon as there is anything to go on.
+  const floor = climbs.length === 0 ? 1 : Math.min(6, 1 + climbs.length)
+  const level = Math.max(floor, Math.min(99, Math.round(power * 0.99)))
+  const rank = rankFor(level)
+
+  // Level → the strength of creature that would be a fair match.
+  const target = MIN_POWER + (level / 99) * (MAX_POWER - MIN_POWER)
+  const taken = new Set(collected)
+  const pool = CREATURES.filter((c) => !taken.has(c.no))
+  const available = pool.length > 0 ? pool : CREATURES
+  const creature = available.reduce((best, c) =>
+    Math.abs(c.power - target) < Math.abs(best.power - target) ? c : best,
   )
 
-  const stats = {
-    sessions: sessions.length,
+  // Only compensate when the creature is *weaker* than deserved. Being handed
+  // a Dragonite at level 12 needs no honorific; it is already funny.
+  const title = titleFor(Math.max(0, target - creature.power))
+
+  // The trait reads the same weighted window as the score. Averaging it over
+  // all time instead would have the professor calling someone Napping because
+  // of how they climbed in March.
+  const avgRest = total > 0 ? wsum(items, (c) => c.restSec) / total : 0
+  const timed = items.filter((i) => i.climb.climbSec > 0)
+  const timedTotal = wtotal(timed)
+  const avgClimbSec = timedTotal > 0 ? wsum(timed, (c) => c.climbSec) / timedTotal : 0
+  const gradeSpread = new Set(climbs.map((c) => c.grade)).size
+  const avgEffort = total > 0 ? Math.round((wsum(items, (c) => c.effort) / total) * 10) / 10 : 0
+  const rawSendRate = climbs.length ? sends.length / climbs.length : 0
+
+  const trait = traitFor({
+    avgRest,
+    avgClimbSec,
+    avgEffort,
+    sendRate: rawSendRate,
     attempts: climbs.length,
-    sends: sends.length,
-    hardestSend: hardest ?? '—',
-    sendRate: Math.round(sendRate * 100),
-    avgEffort: s.avgEffort,
-    avgRestSec: Math.round(avgRest),
-    metres,
-  }
+    perSession,
+    gradeSpread,
+  })
+
+  const displayName = [title, trait?.word, creature.name].filter(Boolean).join(' ')
 
   const reasons: string[] = []
-  let c: Creature
-
-  if (climbs.length < 6) {
-    c = PSYDUCK
-    reasons.push(`Only ${climbs.length} attempt${climbs.length === 1 ? '' : 's'} on record.`)
-    reasons.push('Not enough yet to tell strength from luck.')
-  } else if (hardestIdx >= 5 && sendRate >= 0.5 && perSession >= 10) {
-    c = MEWTWO
-    reasons.push(`${hardest} sent, ${stats.sendRate}% of everything tried, ${Math.round(perSession)} goes a session.`)
-    reasons.push('Hard, accurate and high volume at once — that combination is the rare one.')
-  } else if (hardestIdx >= 5 && sendRate >= 0.35) {
-    c = DRAGONITE
-    reasons.push(`${hardest} in the bag at a ${stats.sendRate}% send rate.`)
-    reasons.push('No weak axis anywhere in the log.')
-  } else if (previous === 'Magikarp' && sendRate >= 0.3 && hardestIdx >= 2) {
-    c = GYARADOS
-    reasons.push(`Last profile said Magikarp. Since then: ${hardest} sent, ${stats.sendRate}% going in.`)
-    reasons.push('That is the evolution, and it happened between two sessions.')
-  } else if (hardestIdx >= 4 && s.avgEffort >= 7.5) {
-    c = MACHAMP
-    reasons.push(`${hardest} sent at an average effort of ${s.avgEffort}/10.`)
-    reasons.push('Nothing on the board is out of reach; it just costs everything.')
-  } else if (hardestIdx >= 3 && sendRate >= 0.6 && perSession <= 8) {
-    c = ALAKAZAM
-    reasons.push(`${stats.sendRate}% of attempts sent, and only ${Math.round(perSession)} a session.`)
-    reasons.push('Almost nothing is wasted. This is being read, not forced.')
-  } else if (perSession >= 12 && avgRest > 0 && avgRest <= 90 && hardestIdx >= 3) {
-    c = RAICHU
-    reasons.push(`${Math.round(perSession)} attempts a session on ${formatRest(avgRest)} of rest.`)
-    reasons.push('Volume at real grades, and the recovery to keep doing it.')
-  } else if (avgRest >= 240 && hardestIdx >= 3) {
-    c = SNORLAX
-    reasons.push(`${formatRest(avgRest)} of rest between goes, and ${hardest} sent anyway.`)
-    reasons.push('Patience, then something enormous. It works.')
-  } else if (s.avgEffort >= 8.5 && avgRest > 0 && avgRest <= 60) {
-    c = PRIMEAPE
-    reasons.push(`Average effort ${s.avgEffort}/10 on ${formatRest(avgRest)} of rest.`)
-    reasons.push('This is not a rest, it is a pause. Relentless.')
-  } else if (avgClimbSec >= 75) {
-    c = ONIX
-    reasons.push(`${Math.round(avgClimbSec)} seconds on the wall per attempt.`)
-    reasons.push('Still up there long after most people would have stepped off.')
-  } else if (climbs.length >= 8 && sendRate < 0.2) {
-    c = MAGIKARP
-    reasons.push(`${climbs.length} attempts, ${sends.length} sent — ${stats.sendRate}%.`)
-    reasons.push('Everything is being thrown at it. The grade is simply too high, for now.')
-  } else if (hardestIdx >= 4) {
-    c = KADABRA
-    reasons.push(`${hardest} sent, ${stats.sendRate}% of attempts going in.`)
-    reasons.push('Efficient at a real grade.')
-  } else if (hardestIdx >= 2 && s.avgEffort >= 7) {
-    c = MACHOKE
-    reasons.push(`${hardest} sent at an average effort of ${s.avgEffort}/10.`)
-    reasons.push('Strength applied bluntly and often — and it is working.')
-  } else if (hardestIdx >= 2 && sendRate >= 0.5) {
-    c = ABRA
-    reasons.push(`${stats.sendRate}% of attempts sent at up to ${hardest}.`)
-    reasons.push('Few goes, most of them good ones.')
-  } else if (gradeSpread >= 4 && hardestIdx <= 2) {
-    c = EEVEE
-    reasons.push(`Attempts spread across ${gradeSpread} different grades.`)
-    reasons.push('No specialism has formed yet, which means all of them are still open.')
-  } else if (perSession >= 10) {
-    c = PIKACHU
-    reasons.push(`${Math.round(perSession)} attempts a session.`)
-    reasons.push('Quick and busy; the grades will catch up with the appetite.')
+  if (hardestIdx >= 0) {
+    reasons.push(
+      `Hardest recent send ${GRADES[hardestIdx]}, typically around ${GRADES[Math.round(meanSentIdx)]}.`,
+    )
   } else {
-    c = MACHOP
-    reasons.push(`${climbs.length} attempts, hardest send ${stats.hardestSend}.`)
-    reasons.push('Early, strong, and pointed in the right direction.')
+    reasons.push('Nothing sent clean yet, so the grade score is still at zero.')
   }
+  reasons.push(
+    `${Math.round(sendScore * 100)}% of recent attempts going in, at ${Math.round(perSession)} goes a session.`,
+  )
+  if (trait) reasons.push(trait.line)
+  if (title) {
+    reasons.push(
+      `Level ${level} outgrew the creatures still unclaimed, so ${creature.name} carries the ${title} title instead.`,
+    )
+  }
+
+  void weightedSessions
 
   return {
-    creature: c,
-    verdict: c.flavour,
+    creature,
+    level,
+    rank,
+    title,
+    trait,
+    displayName,
     reasons,
-    stats,
+    stats: {
+      sessions: sessions.length,
+      attempts: climbs.length,
+      sends: sends.length,
+      hardestSend: hardestIdx >= 0 ? GRADES[hardestIdx] : '—',
+      sendRate: Math.round(rawSendRate * 100),
+      avgEffort,
+      avgRestSec: Math.round(avgRest),
+      metres: Math.round(climbs.reduce((t, c) => t + (c.completion / 100) * BOULDER_HEIGHT_M, 0)),
+    },
   }
 }
 
-function formatRest(sec: number): string {
-  if (sec < 90) return `${Math.round(sec)}s`
-  return `${Math.round(sec / 60)} min`
+interface TraitInput {
+  avgRest: number
+  avgClimbSec: number
+  avgEffort: number
+  sendRate: number
+  attempts: number
+  perSession: number
+  gradeSpread: number
 }
 
-/** Highest grade on the ladder, for the copy that talks about ceilings. */
+/** First match wins, most distinctive behaviour first. */
+function traitFor(t: TraitInput): Trait | null {
+  if (t.attempts < 4) return null
+  if (t.avgRest >= 240)
+    return { word: 'Napping', line: `${fmt(t.avgRest)} of rest between goes. Not resting — napping.` }
+  if (t.avgRest > 0 && t.avgRest <= 45)
+    return { word: 'Overcaffeinated', line: `${fmt(t.avgRest)} of rest. That is not recovery, that is a blink.` }
+  if (t.avgClimbSec >= 75)
+    return { word: 'Barnacled', line: `${Math.round(t.avgClimbSec)}s on the wall per go. Attached to it, really.` }
+  if (t.avgEffort >= 8.5)
+    return { word: 'Unhinged', line: `Average effort ${t.avgEffort}/10. Every single go, apparently.` }
+  if (t.sendRate >= 0.7)
+    return { word: 'Surgical', line: `${Math.round(t.sendRate * 100)}% of attempts sent. Almost nothing wasted.` }
+  if (t.attempts >= 8 && t.sendRate < 0.2)
+    return { word: 'Stubborn', line: `${Math.round(t.sendRate * 100)}% sent and still going back up. Respect.` }
+  if (t.gradeSpread >= 5)
+    return { word: 'Indecisive', line: `Attempts across ${t.gradeSpread} different grades. Pick a lane.` }
+  if (t.perSession >= 15)
+    return { word: 'Restless', line: `${Math.round(t.perSession)} goes a session. The wall must be sick of it.` }
+  return null
+}
+
+const fmt = (sec: number): string => (sec < 90 ? `${Math.round(sec)}s` : `${Math.round(sec / 60)} min`)
+
 export const TOP_GRADE = GRADES[GRADES.length - 1]
+
+/**
+ * "a Machamp" but "an Archwizard". Vowel-initial is the whole rule here —
+ * the roster has no Hour-style silent letters and no U-as-in-unicorn names.
+ */
+export const article = (word: string): string =>
+  /^[aeiou]/i.test(word.trim()) ? 'an' : 'a'

@@ -100,6 +100,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notes,
       createdAt: Date.now(),
       archivedAt: null,
+      dex: [],
+      lastAnalysedSessionId: null,
+      seenTrophies: [],
     }
     setData((d) => ({ ...d, clients: [...d.clients, client] }))
     return client

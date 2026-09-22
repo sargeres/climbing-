@@ -15,6 +15,47 @@ export interface Client {
   notes: string
   createdAt: number
   archivedAt: number | null
+  /**
+   * Everything this climber has been matched with, oldest first. The record
+   * is the feature: a creature is only ever awarded once, so the collection
+   * is both a history and the constraint that forces the next match to be
+   * something new.
+   */
+  dex: DexEntry[]
+  /**
+   * The session the last analysis was run against. One reading per session —
+   * re-rolling until you like the answer would make the whole thing worthless.
+   */
+  lastAnalysedSessionId: string | null
+  /**
+   * Trophy ids already shown. The trophies themselves are recomputed from the
+   * log every time, so this is the only part that has to persist — without it
+   * there is no way to tell a new trophy from one earned last spring.
+   */
+  seenTrophies: string[]
+}
+
+/** One creature captured into the Sendex. */
+export interface DexEntry {
+  /** National number, and the uniqueness key. */
+  no: number
+  name: string
+  /** With title and trait, as the professor said it. */
+  displayName: string
+  level: number
+  rankIndex: number
+  rankName: string
+  title: string | null
+  trait: string | null
+  /** Snapshot of the numbers behind it, so an old card can be redrawn. */
+  attempts: number
+  sends: number
+  hardestSend: string
+  sendRate: number
+  metres: number
+  reasons: string[]
+  capturedAt: number
+  sessionId: string
 }
 
 export interface Session {
@@ -58,9 +99,16 @@ export interface Climb {
 /**
  * 1 → 2 added per-attempt climb time and session coordinates.
  * 2 → 3 added a per-attempt video link.
+ * 3 → 4 moved the remembered creature out of `notes` into its own field, and
+ *       scrubs the leaked `[form:…]` marker from any notes already holding one.
+ * 4 → 5 replaced that single remembered form with the full Sendex collection
+ *       and the once-per-session lock.
+ * 5 → 6 added the seen-trophy list. Trophies are derived from the log, so
+ *       nothing else needs storing and an existing log gets its whole shelf
+ *       on first open.
  * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 3
+export const DATA_VERSION = 6
 
 export interface AppData {
   version: number

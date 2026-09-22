@@ -158,7 +158,14 @@ export function ClientScreen({
           className="btn btn-block"
           onClick={() => navigate({ name: 'profile', clientId })}
         >
-          See field notes
+          Open the Sendex
+        </button>
+
+        <button
+          className="btn btn-block"
+          onClick={() => navigate({ name: 'trophies', clientId })}
+        >
+          Trophies
         </button>
 
         <button className="btn btn-danger btn-block" onClick={() => setConfirmDelete(true)}>
