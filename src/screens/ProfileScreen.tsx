@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { EmptyState, TopBar } from '../components/ui'
 import { analyse, article, type Analysis } from '../lib/profile'
+import { RARITIES } from '../lib/rarity'
 import { canvasToFile, drawProfileCard, shareCard, type ShareOutcome } from '../lib/storycard'
 import type { DexEntry } from '../lib/types'
 import professor from '../assets/professor-160.png'
@@ -43,15 +44,25 @@ function Dialogue({ text }: { text: string }) {
   )
 }
 
-function LevelBar({ level }: { level: number }) {
+/**
+ * The rarity badge, with the rank underneath it.
+ *
+ * They are deliberately shown together and labelled differently: a coach
+ * reading a Common after their client's best session has to be able to see at
+ * a glance that the tier was luck and the rank was the climbing. Without the
+ * "rolled" label this screen quietly insults people.
+ */
+function RarityBadge({ rarity, rankIndex, rankName }: { rarity: string; rankIndex: number; rankName: string }) {
   return (
-    <div className="level-row">
-      <span className="level-num">Lv {level}</span>
-      <div className="level-track">
-        <div className="level-fill" style={{ width: `${level}%` }} />
+    <>
+      <div className="rarity-row">
+        <span className={`rarity-badge r${RARITIES.indexOf(rarity as never)}`}>{rarity}</span>
+        <span className="tiny faint">rolled</span>
       </div>
-      <span className="level-max">99</span>
-    </div>
+      <div className="rank-line">
+        Rank {rankIndex} of 12 · <strong>{rankName}</strong> <span className="tiny faint">earned</span>
+      </div>
+    </>
   )
 }
 
@@ -83,7 +94,14 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
   const latest = dex.length > 0 ? dex[dex.length - 1] : null
   // The most recent finished session is what a reading is taken against.
   const lastEnded = sessions.filter((s) => s.endedAt !== null)[0] ?? null
-  const alreadyRead = lastEnded !== null && client.lastAnalysedSessionId === lastEnded.id
+  // Checked against every session already in the collection, not just the last
+  // one read. Comparing a single id let you delete the newest session, watch
+  // `lastEnded` fall back to an older one whose id no longer matched, and take
+  // a second reading on a session that had already been read.
+  const readSessionIds = new Set(dex.map((d) => d.sessionId))
+  const alreadyRead =
+    lastEnded !== null &&
+    (client.lastAnalysedSessionId === lastEnded.id || readSessionIds.has(lastEnded.id))
   const canAnalyse = lastEnded !== null && !alreadyRead && climbs.length > 0
 
   const generate = () => {
@@ -97,7 +115,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
         no: a.creature.no,
         name: a.creature.name,
         displayName: a.displayName,
-        level: a.level,
+        rarity: a.rarity,
         rankIndex: a.rank.index,
         rankName: a.rank.name,
         title: a.title,
@@ -138,7 +156,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
       setShare(
         await shareCard(
           file,
-          `${client.name.split(' ')[0]} is ${article(entry.displayName)} ${entry.displayName}. Lv ${entry.level}.`,
+          `${client.name.split(' ')[0]} is ${article(entry.displayName)} ${entry.displayName} — ${entry.rarity}.`,
         ),
       )
     } finally {
@@ -147,9 +165,9 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
   }
 
   const headline = fresh
-    ? `${client.name.split(' ')[0]} is ${article(fresh.displayName)} ${fresh.displayName}! Level ${fresh.level}, rank ${fresh.rank.index} of ${fresh.rank.of} — ${fresh.rank.name}.`
+    ? `${client.name.split(' ')[0]} is ${article(fresh.displayName)} ${fresh.displayName} — ${fresh.rarity}! Rank ${fresh.rank.index} of ${fresh.rank.of}, ${fresh.rank.name}.`
     : latest
-      ? `${client.name.split(' ')[0]} is ${article(latest.displayName)} ${latest.displayName}. Level ${latest.level}, ${latest.rankName}.`
+      ? `${client.name.split(' ')[0]} is ${article(latest.displayName)} ${latest.displayName} — ${latest.rarity}. ${latest.rankName}.`
       : climbs.length === 0
         ? `No attempts on record for ${client.name.split(' ')[0]} yet. Log a session and come back.`
         : `${climbs.length} attempt${climbs.length === 1 ? '' : 's'} on record. End a session and I will take a reading.`
@@ -167,10 +185,11 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
 
         {!generating && latest && (
           <div className="card">
-            <LevelBar level={latest.level} />
-            <div className="rank-line">
-              Rank {latest.rankIndex} of 12 · <strong>{latest.rankName}</strong>
-            </div>
+            <RarityBadge
+              rarity={latest.rarity}
+              rankIndex={latest.rankIndex}
+              rankName={latest.rankName}
+            />
             <ul className="reasons">
               {latest.reasons.map((r) => (
                 <li key={r}>{r}</li>
@@ -220,7 +239,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
                 <button key={`${e.no}-${e.capturedAt}`} className="dex-cell" onClick={() => setOpen(e)}>
                   <span className="dex-no">#{String(e.no).padStart(3, '0')}</span>
                   <span className="dex-name">{e.name}</span>
-                  <span className="dex-lv">Lv {e.level}</span>
+                  <span className="dex-lv">{e.rarity}</span>
                 </button>
               ))}
             </div>
@@ -237,10 +256,7 @@ export function ProfileScreen({ clientId, onBack }: { clientId: string; onBack: 
             <div className="sheet-grabber" />
             <div className="section-label">#{String(open.no).padStart(3, '0')}</div>
             <h2 style={{ fontSize: 17, margin: '6px 0 12px' }}>{open.displayName}</h2>
-            <LevelBar level={open.level} />
-            <div className="rank-line">
-              Rank {open.rankIndex} of 12 · <strong>{open.rankName}</strong>
-            </div>
+            <RarityBadge rarity={open.rarity} rankIndex={open.rankIndex} rankName={open.rankName} />
             <ul className="reasons">
               {open.reasons.map((r) => (
                 <li key={r}>{r}</li>

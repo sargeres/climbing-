@@ -129,17 +129,18 @@ export function drawProfileCard(canvas: HTMLCanvasElement, input: CardInput): vo
   ctx.fillText(`${who.split(' ')[0]}, as read from the log`, M, y)
   y += 70
 
-  // Level bar — the real measure, so it gets the most graphic weight.
+  // Rarity banner. It is the loudest thing after the name because it is the
+  // part people screenshot — but the rank sits right under it, because rank is
+  // what the climbing actually earned and rarity is only a good roll.
   ctx.fillStyle = TONES.ink
-  ctx.font = `40px ${PIXEL}`
-  ctx.fillText(`LV ${entry.level}`, M, y)
-  const barX = M + 240
-  const barW = inner - 240
-  ctx.strokeStyle = TONES.ink
-  ctx.lineWidth = 5
-  ctx.strokeRect(barX, y + 2, barW, 42)
-  ctx.fillRect(barX, y + 2, Math.round((barW * entry.level) / 99), 42)
-  y += 74
+  ctx.font = `34px ${PIXEL}`
+  const tier = entry.rarity.toUpperCase()
+  const tw = ctx.measureText(tier).width
+  ctx.fillRect(M, y, tw + 48, 66)
+  ctx.fillStyle = TONES.screen
+  ctx.fillText(tier, M + 24, y + 16)
+  y += 88
+
   ctx.font = `26px ${PIXEL}`
   ctx.fillStyle = TONES.dark
   ctx.fillText(`RANK ${entry.rankIndex}/12  ${entry.rankName.toUpperCase()}`, M, y)

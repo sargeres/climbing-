@@ -9,6 +9,7 @@ import {
   type Coords,
   type Grade,
 } from './types'
+import { rarityFromLevel } from './rarity'
 
 /**
  * The whole log lives in a single IndexedDB record. A coach with a full book of
@@ -122,7 +123,10 @@ export function migrate(raw: unknown): AppData {
                 no: num(e.no),
                 name: str(e.name, '???'),
                 displayName: str(e.displayName) || str(e.name, '???'),
-                level: num(e.level, 1),
+                rarity:
+                  typeof e.rarity === 'string'
+                    ? e.rarity
+                    : rarityFromLevel(num(e.level, 1)),
                 rankIndex: num(e.rankIndex, 1),
                 rankName: str(e.rankName, 'Chalk Dust'),
                 title: typeof e.title === 'string' ? e.title : null,

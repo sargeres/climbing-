@@ -2,7 +2,9 @@
  * Bouldering V-scale used throughout the app. Extending the ladder is a
  * one-line change here — every grade picker, chart and stat reads this array.
  */
-export const GRADES = ['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'] as const
+export const GRADES = [
+  'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10',
+] as const
 export type Grade = (typeof GRADES)[number]
 
 /** Rate of perceived exertion, 1 (trivial) to 10 (absolute max). */
@@ -42,7 +44,8 @@ export interface DexEntry {
   name: string
   /** With title and trait, as the professor said it. */
   displayName: string
-  level: number
+  /** Rolled at capture; see src/lib/rarity.ts for why it is not earned. */
+  rarity: string
   rankIndex: number
   rankName: string
   title: string | null
@@ -106,9 +109,11 @@ export interface Climb {
  * 5 → 6 added the seen-trophy list. Trophies are derived from the log, so
  *       nothing else needs storing and an existing log gets its whole shelf
  *       on first open.
+ * 6 → 7 replaced a dex entry's level with a card rarity, mapping any existing
+ *       level across rather than dropping it.
  * All are backfilled by `migrate`, so an older export restores without loss.
  */
-export const DATA_VERSION = 6
+export const DATA_VERSION = 7
 
 export interface AppData {
   version: number

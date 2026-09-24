@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TONES } from '../lib/colors'
 import { isNonLatin, pickShout, romanFor, speakShout, wordFor } from '../lib/shout'
+import { duckMusic } from '../lib/music'
 
 /* Four tones of confetti. Light pieces carry an ink outline or they vanish
    against the screen. */
@@ -80,6 +81,7 @@ export function Celebration({ completion, lastLang, onShout, onSilent, onDone }:
 
   useEffect(() => {
     cbRef.current.onShout?.(shout.lang)
+    duckMusic(2200)
     if (!speakShout(shout, sent)) cbRef.current.onSilent?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
