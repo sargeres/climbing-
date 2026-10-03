@@ -1456,3 +1456,55 @@ input[type='range']::-moz-range-thumb {
 .trophy-row .tiny + .tiny {
   margin-top: 4px;
 }
+
+/* --------------------------------------------------------- rarity/adjust -- */
+.rarity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Rarer tiers get more ink and more texture — the same tone-plus-dither idea
+   the grade ladder uses, so nothing here depends on hue either. */
+.rarity-badge {
+  font-family: var(--pixel);
+  font-size: 10px;
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.rarity-badge.r2 { background: var(--surface-3); }
+.rarity-badge.r3 {
+  background: var(--surface-3);
+  background-image: repeating-linear-gradient(45deg, rgba(15,15,15,0.35) 0 2px, transparent 2px 5px);
+}
+.rarity-badge.r4 {
+  background: var(--ink-3);
+  background-image: repeating-conic-gradient(rgba(15,15,15,0.4) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+}
+.rarity-badge.r5 {
+  background: var(--ink-2);
+  color: var(--screen-hi);
+  background-image: repeating-linear-gradient(-45deg, rgba(230,233,223,0.4) 0 2px, transparent 2px 5px);
+}
+.rarity-badge.r6 {
+  background: var(--ink);
+  color: var(--screen-hi);
+  background-image: repeating-conic-gradient(rgba(230,233,223,0.45) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+}
+
+.adjust-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.adjust-btn {
+  min-width: 84px;
+  font-variant-numeric: tabular-nums;
+}

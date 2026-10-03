@@ -2,12 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { ClimbRow, EmptyState, Stat, TopBar } from '../components/ui'
 import { LogClimbSheet, type ClimbDraft } from '../components/LogClimbSheet'
-import { clearSessionTimer, useSessionTimer, REST_TARGETS } from '../lib/useSessionTimer'
+import {
+  clearSessionTimer,
+  useSessionTimer,
+  REST_TARGETS,
+  ADJUST_STEP_SEC,
+} from '../lib/useSessionTimer'
 import { SessionSnapshot } from '../components/SessionSnapshot'
 import { Celebration } from '../components/Celebration'
 import { buildSnapshot } from '../lib/snapshot'
 import { buzz, listenForFirstGesture, playRestAlarm, playSendChime, primeAudio } from '../lib/sound'
 import { primeVoices } from '../lib/shout'
+import { duckMusic } from '../lib/music'
 import { useWakeLock } from '../lib/useWakeLock'
 import { formatDuration, formatDurationShort } from '../lib/format'
 import { summarise, workRestRatio } from '../lib/stats'
@@ -79,6 +85,8 @@ export function ActiveSessionScreen({
   // Ring once when the rest target is hit, and only while the session is live.
   useEffect(() => {
     if (!live || !timer.restTargetReached || timer.alarmed) return
+    // Two voices at once in a loud gym means neither is heard.
+    duckMusic(3000)
     timer.markAlarmed()
     playRestAlarm()
     buzz([200, 100, 200, 100, 320])
@@ -219,6 +227,27 @@ export function ActiveSessionScreen({
           >
             {climbing ? 'Back to rest' : 'Start climbing'}
           </button>
+
+          {/* For the go that was already underway before anyone hit start. It
+              moves the banked seconds, so the clock keeps running from the same
+              instant and the correction survives a reload. */}
+          <div className="adjust-row" role="group" aria-label={`Adjust ${climbing ? 'go' : 'rest'} time`}>
+            <button
+              className="btn adjust-btn"
+              onClick={() => timer.adjustPhase(-ADJUST_STEP_SEC)}
+              aria-label={`Take 30 seconds off the ${climbing ? 'go' : 'rest'}`}
+            >
+              −30s
+            </button>
+            <span className="tiny faint">adjust</span>
+            <button
+              className="btn adjust-btn"
+              onClick={() => timer.adjustPhase(ADJUST_STEP_SEC)}
+              aria-label={`Add 30 seconds to the ${climbing ? 'go' : 'rest'}`}
+            >
+              +30s
+            </button>
+          </div>
 
           <div className="row" style={{ gap: 8, marginTop: 8 }}>
             <button className="btn btn-block" onClick={timer.toggle}>

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { StoreProvider, useStore } from './lib/store'
 import { useNav, type Screen } from './lib/useNav'
 import { HomeScreen } from './screens/HomeScreen'
@@ -11,6 +11,7 @@ import { CrewScreen } from './screens/CrewScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 import { TrophyScreen } from './screens/TrophyScreen'
 import { joinCodeFromUrl } from './lib/crew'
+import { musicEnabled, startMusic, watchVisibility } from './lib/music'
 
 function Router() {
   const { ready } = useStore()
@@ -24,6 +25,20 @@ function Router() {
     [inviteCode],
   )
   const { screen, push, replace, back } = useNav(initialStack)
+
+  // The tune only resumes if it was already switched on, and only once the
+  // first tap has unlocked audio — browsers refuse it before that, and so
+  // would anyone standing in a quiet gym.
+  useEffect(() => {
+    const stopWatching = watchVisibility()
+    if (!musicEnabled()) return stopWatching
+    const onFirstTap = () => startMusic()
+    document.addEventListener('pointerdown', onFirstTap, { once: true, passive: true })
+    return () => {
+      document.removeEventListener('pointerdown', onFirstTap)
+      stopWatching()
+    }
+  }, [])
 
   if (!ready) {
     return (

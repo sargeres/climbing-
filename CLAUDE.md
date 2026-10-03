@@ -36,6 +36,12 @@ Instagram sharing is confirmed working on their device too.
 first-generation creatures, with a level 1–99 and a rank out of 12. Three
 rules hold it together and breaking any one of them breaks the feature:
 
+0. **Rank is earned, rarity is rolled.** Rank comes deterministically from the
+   climbing; the card rarity (`src/lib/rarity.ts`) is a weighted roll that
+   effort loads in your favour — Secret Rare runs 0.3% at no effort to 5.0% at
+   maximal. A great session can still turn up a Common, so the UI labels the
+   two differently. Without that label the screen quietly insults people.
+
 1. **Recent sessions dominate.** Session weights halve every two sessions
    back, so a breakthrough afternoon actually moves the number. The first
    version averaged over all time, which made "evolves after each session" a
@@ -43,9 +49,9 @@ rules hold it together and breaking any one of them breaks the feature:
    and called someone Napping because of how they climbed in March.
 2. **A creature is awarded once.** `collected` excludes it forever, so the
    collection is both the history and the constraint.
-3. **The level is the truth, the creature is the costume.** When the fitting
+3. **The internal score is the truth, the creature is the costume.** When the fitting
    creatures are used up the matcher drops to the nearest unclaimed one and
-   compensates with a title — that is how a level 90 climber becomes an
+   compensates with a title — that is how a top-rank climber becomes an
    Archwizard Growlithe. Verified by seeding a collection of 120 and checking
    the title actually fires; it does not fire in ordinary testing because five
    creatures out of 151 always leaves a close match.
@@ -232,7 +238,10 @@ Check these before writing new code in the same shape.
   `DATA_VERSION` and add the field there when extending the model.
 - The crew can never break the log: `src/lib/crew.ts` returns a `Result` rather
   than throwing, and the logging path never touches the network.
-- `GRADES` in `src/lib/types.ts` is the single source of truth for the V-scale.
+- `GRADES` in `src/lib/types.ts` is the single source of truth for the V-scale,
+  now V0–V10. Grade *score* normalises against a fixed ceiling (`V8`), NOT
+  against the array length — extending the ladder that way would silently
+  re-normalise every existing climber's rank downward.
 - Commit messages explain *why*, including what testing found.
 - Push to the branch named at the top of this file, open a draft PR, let the
   user merge.

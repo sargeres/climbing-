@@ -22,12 +22,21 @@ export const TONES = {
 /** A 50% checker at 4px, the classic two-bit way to fake a fifth tone. */
 const CHECKER =
   'repeating-conic-gradient(rgba(15,15,15,0.55) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px'
+/** The same checker at half the pitch, so it reads denser without a new tone. */
+const CHECKER_FINE =
+  'repeating-conic-gradient(rgba(15,15,15,0.6) 0% 25%, transparent 0% 50%) 0 0 / 3px 3px'
 /** Diagonal hatching, for the rungs that sit between two tones. */
 const HATCH =
   'repeating-linear-gradient(45deg, rgba(15,15,15,0.5) 0 2px, transparent 2px 5px)'
-/** The same hatch in the other direction, so V5 cannot be mistaken for V3. */
+/** The same hatch mirrored, so one rung cannot be mistaken for its neighbour. */
+const HATCH_MIRROR =
+  'repeating-linear-gradient(-45deg, rgba(15,15,15,0.5) 0 2px, transparent 2px 5px)'
+/** Light-on-dark hatch, for the rungs dark enough that ink would vanish. */
 const HATCH_BACK =
   'repeating-linear-gradient(-45deg, rgba(230,233,223,0.55) 0 2px, transparent 2px 5px)'
+/** Light-on-dark checker, the top of the ladder. */
+const CHECKER_BACK =
+  'repeating-conic-gradient(rgba(230,233,223,0.5) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px'
 
 export interface Tone {
   /** Flat background colour. */
@@ -38,14 +47,27 @@ export interface Tone {
   pattern: string
 }
 
+/*
+ * Eleven rungs out of five tones.
+ *
+ * Extending the ladder to V10 broke the old scheme, which spent one tone per
+ * two grades and had nothing left over. The fix is to alternate flat and
+ * patterned within each tone, and to flip the pattern's colour once the fill
+ * goes dark enough that ink would disappear into it — so every adjacent pair
+ * differs either in tone or in texture, never in hue.
+ */
 export const GRADE_TONES: Record<Grade, Tone> = {
   V0: { fill: TONES.screen, ink: TONES.ink, pattern: '' },
   V1: { fill: TONES.screen, ink: TONES.ink, pattern: CHECKER },
   V2: { fill: TONES.light, ink: TONES.ink, pattern: '' },
   V3: { fill: TONES.light, ink: TONES.ink, pattern: HATCH },
-  V4: { fill: TONES.mid, ink: TONES.ink, pattern: CHECKER },
-  V5: { fill: TONES.dark, ink: TONES.screen, pattern: HATCH_BACK },
-  V6: { fill: TONES.ink, ink: TONES.screen, pattern: '' },
+  V4: { fill: TONES.light, ink: TONES.ink, pattern: CHECKER_FINE },
+  V5: { fill: TONES.mid, ink: TONES.ink, pattern: '' },
+  V6: { fill: TONES.mid, ink: TONES.ink, pattern: HATCH_MIRROR },
+  V7: { fill: TONES.mid, ink: TONES.ink, pattern: CHECKER_FINE },
+  V8: { fill: TONES.dark, ink: TONES.screen, pattern: '' },
+  V9: { fill: TONES.dark, ink: TONES.screen, pattern: HATCH_BACK },
+  V10: { fill: TONES.ink, ink: TONES.screen, pattern: CHECKER_BACK },
 }
 
 export const gradeTone = (grade: Grade): Tone =>

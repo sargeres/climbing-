@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../lib/store'
+import { musicEnabled, setMusicEnabled } from '../lib/music'
 import { TopBar } from '../components/ui'
 import { migrate } from '../lib/db'
 import type { AppData } from '../lib/types'
@@ -64,6 +65,7 @@ function toCsv(data: AppData): string {
 }
 
 export function SettingsScreen({ onBack }: { onBack: () => void }) {
+  const [music, setMusic] = useState(() => musicEnabled())
   const { data, replaceAll } = useStore()
   const fileInput = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -89,6 +91,29 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
     <>
       <TopBar title="Settings" onBack={onBack} />
       <main className="content">
+        <div className="card stack">
+          <div>
+            <div className="section-label">Music</div>
+            <p className="tiny muted" style={{ margin: '6px 0 0' }}>
+              A looping town theme, off by default — an app you open mid-session
+              shouldn't start singing at you in a public gym. It goes quiet by
+              itself while the rest alarm rings or a shout is spoken, and stops
+              when you switch away.
+            </p>
+          </div>
+          <button
+            className={`btn btn-block${music ? ' btn-primary' : ''}`}
+            aria-pressed={music}
+            onClick={() => {
+              const next = !music
+              setMusic(next)
+              setMusicEnabled(next)
+            }}
+          >
+            {music ? 'Music on' : 'Music off'}
+          </button>
+        </div>
+
         <div className="card stack">
           <div>
             <div className="section-label">Backup</div>

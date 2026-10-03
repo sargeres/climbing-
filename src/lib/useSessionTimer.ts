@@ -16,8 +16,15 @@ interface Persisted {
   alarmed: boolean
 }
 
-/** Offered as one-tap choices; matches how boulder rests are usually called. */
-export const REST_TARGETS = [0, 60, 120, 180, 300] as const
+/**
+ * Offered as one-tap choices. Long by gym standards on purpose — these are the
+ * rests a coach actually programmes between hard goes, not the minute-ish
+ * breather the first version assumed.
+ */
+export const REST_TARGETS = [0, 300, 600, 900, 1200] as const
+
+/** One tap of the +/- control on a clock. */
+export const ADJUST_STEP_SEC = 30
 
 const key = (sessionId: string) => `sendlog.timer.${sessionId}`
 
@@ -158,6 +165,30 @@ export function useSessionTimer(sessionId: string | null) {
     setState((s) => (s.alarmed ? s : { ...s, alarmed: true }))
   }, [])
 
+  /**
+   * Nudge the visible clock by a few seconds, for the go that was already
+   * underway before anyone remembered to hit start.
+   *
+   * It moves the *banked* seconds rather than the start timestamp, so a
+   * running clock keeps running from the same instant and the correction
+   * survives the next tick, a reload and a phone lock. The floor is the
+   * seconds already run in this go: you can wind a clock back to zero but not
+   * past it, so no attempt can be logged with a negative rest.
+   */
+  const adjustPhase = useCallback((deltaSec: number) => {
+    setState((s) => {
+      const runningSec =
+        s.startedAt !== null ? (Date.now() - s.startedAt) / 1000 : 0
+      if (s.phase === 'rest') {
+        const next = Math.max(-runningSec, s.restAccum + deltaSec)
+        // Winding a rest back below its target re-arms the alarm, otherwise a
+        // correction could silently eat the ring that was about to happen.
+        return { ...s, restAccum: next, alarmed: next + runningSec < s.restTargetSec ? false : s.alarmed }
+      }
+      return { ...s, climbAccum: Math.max(-runningSec, s.climbAccum + deltaSec) }
+    })
+  }, [])
+
   /** Zero only the clock currently showing, for a mistimed go or rest. */
   const resetPhase = useCallback(() => {
     setState((s) =>
@@ -188,6 +219,7 @@ export function useSessionTimer(sessionId: string | null) {
     setPhase,
     startNextRest,
     resetPhase,
+    adjustPhase,
     setRestTarget,
     markAlarmed,
   }

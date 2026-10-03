@@ -1,4 +1,5 @@
 import { CREATURES, MAX_POWER, MIN_POWER, type Creature } from './creatures'
+import { rollRarity, type Rarity } from './rarity'
 import { gradeIndex, SEND_THRESHOLD } from './stats'
 import { GRADES, type Climb, type Session } from './types'
 
@@ -34,6 +35,12 @@ const HALF_LIFE_SESSIONS = 2
 
 /** Attempts in a session that counts as full marks for volume. */
 const VOLUME_TARGET = 20
+
+/**
+ * The grade that scores full marks. Anything above it is still recorded and
+ * still wins the hardest-send line, it just cannot push the score higher.
+ */
+const SCORING_CEILING_IDX = Math.max(1, GRADES.indexOf('V8'))
 
 export interface Rank {
   index: number
@@ -91,8 +98,11 @@ export interface Trait {
 
 export interface Analysis {
   creature: Creature
-  /** 1–99. */
-  level: number
+  /**
+   * Rolled, not earned — a hard session loads the dice but never guarantees
+   * anything. Kept separate from `rank` on purpose; see src/lib/rarity.ts.
+   */
+  rarity: Rarity
   rank: Rank
   /** Honorific when the creature under-sells the level, else null. */
   title: string | null
@@ -135,9 +145,11 @@ export interface ProfileInput {
   sessions: Session[]
   /** Creature numbers this climber has already been given. */
   collected?: number[]
+  /** Injectable so the rarity roll can be tested rather than hoped at. */
+  rng?: () => number
 }
 
-export function analyse({ climbs, sessions, collected = [] }: ProfileInput): Analysis {
+export function analyse({ climbs, sessions, collected = [], rng }: ProfileInput): Analysis {
   const items = weighClimbs(climbs, sessions)
   const total = wtotal(items)
   const sends = items.filter((i) => i.climb.completion >= SEND_THRESHOLD)
@@ -147,8 +159,17 @@ export function analyse({ climbs, sessions, collected = [] }: ProfileInput): Ana
   // a single lucky send does not carry a whole profile on its own.
   const hardestIdx = sends.reduce((best, i) => Math.max(best, gradeIndex(i.climb.grade)), -1)
   const meanSentIdx = sendWeight > 0 ? wsum(sends, (c) => gradeIndex(c.grade)) / sendWeight : 0
-  const gradeScore =
-    hardestIdx < 0 ? 0 : 0.62 * (hardestIdx / (GRADES.length - 1)) + 0.38 * (meanSentIdx / (GRADES.length - 1))
+  // Normalised against a fixed ceiling, NOT against the length of the ladder.
+  //
+  // When the scale ran V0–V6, a V6 sender scored 1.0. Extending it to V10 would
+  // have silently re-normalised that to 0.6 and dropped every existing
+  // climber's rank overnight — a change nobody asked for, arriving as a
+  // punishment for a feature. Pinning the ceiling to V8 (a genuinely strong
+  // gym send) and clamping keeps the scale meaningful at the top while costing
+  // a V6 sender 0.25 rather than 0.40. Some drop is honest: V6 really is not
+  // the top of an eleven-grade ladder any more. A silent 40% drop was not.
+  const norm = (idx: number) => Math.min(1, idx / SCORING_CEILING_IDX)
+  const gradeScore = hardestIdx < 0 ? 0 : 0.62 * norm(hardestIdx) + 0.38 * norm(meanSentIdx)
 
   const sendScore = total > 0 ? sendWeight / total : 0
 
@@ -161,15 +182,15 @@ export function analyse({ climbs, sessions, collected = [] }: ProfileInput): Ana
   const power =
     100 * (0.45 * gradeScore + 0.25 * sendScore + 0.18 * volumeScore + 0.12 * effortScore)
 
-  // A first session should not read as level 1 of 99 — that is discouraging and
-  // also untrue, since a brand-new climber sending V2 is not nothing. The floor
-  // rises as soon as there is anything to go on.
+  // An internal 1–99 score. It is no longer shown anywhere — rarity replaced it
+  // on the card — but it still decides the rank and which creature is a fair
+  // match, so it stays as the deterministic spine under the rolled part.
   const floor = climbs.length === 0 ? 1 : Math.min(6, 1 + climbs.length)
-  const level = Math.max(floor, Math.min(99, Math.round(power * 0.99)))
-  const rank = rankFor(level)
+  const score = Math.max(floor, Math.min(99, Math.round(power * 0.99)))
+  const rank = rankFor(score)
 
-  // Level → the strength of creature that would be a fair match.
-  const target = MIN_POWER + (level / 99) * (MAX_POWER - MIN_POWER)
+  // Score → the strength of creature that would be a fair match.
+  const target = MIN_POWER + (score / 99) * (MAX_POWER - MIN_POWER)
   const taken = new Set(collected)
   const pool = CREATURES.filter((c) => !taken.has(c.no))
   const available = pool.length > 0 ? pool : CREATURES
@@ -218,15 +239,17 @@ export function analyse({ climbs, sessions, collected = [] }: ProfileInput): Ana
   if (trait) reasons.push(trait.line)
   if (title) {
     reasons.push(
-      `Level ${level} outgrew the creatures still unclaimed, so ${creature.name} carries the ${title} title instead.`,
+      `${creature.name} is below where this climbing sits, so it carries the ${title} title instead.`,
     )
   }
 
   void weightedSessions
 
+  const rarity = rollRarity(avgEffort, rng)
+
   return {
     creature,
-    level,
+    rarity,
     rank,
     title,
     trait,
